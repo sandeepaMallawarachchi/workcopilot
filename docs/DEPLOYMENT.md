@@ -34,6 +34,33 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/database.sql
 
 The test transaction rolls back. Existing queue contents would make its deterministic lease assertions unsuitable, so use a freshly reset test database.
 
+### SQL Editor alternative for a fresh hosted project
+
+If `public.profiles` does not exist and you have not applied the migrations, you can use the generated `supabase/setup.sql` instead of installing the CLI. Open your intended project in Supabase → SQL Editor → New query, paste the **entire** file, and run it once. It combines all application migrations in one transaction and deliberately refuses to run over an existing application schema. It does not create a login account or set a password.
+
+Regenerate the bundle after changing migration sources:
+
+```sh
+npm run db:bundle
+```
+
+Verify that setup succeeded:
+
+```sql
+select to_regclass('public.profiles') as profiles_table;
+```
+
+The result must be `profiles`, rather than NULL. You can then provision the administrator below. Confirm that the SQL Editor project is the same project used by your application's Supabase URL.
+
+Choose **either** the bundle or `supabase db push` for initial provisioning. The SQL Editor does not automatically record Supabase CLI migration history. If moving to the CLI after a **successfully committed full bundle**, first compare the remote schema with these files and record the four already-applied versions before pushing future migrations:
+
+```sh
+supabase migration repair 202611150001 202611150002 202611150003 202611150004 --status applied --linked
+supabase migration list --linked
+```
+
+Do not repair versions whose SQL failed or did not run. If the setup query fails, its transaction rolls back; fix the reported error before attempting the full bundle again.
+
 ## 2. Administrator authentication
 
 In Supabase Authentication → Providers, enable Email/password and disable public signups. In Authentication → Users, create your administrator with a strong password and mark their email confirmed. There is deliberately no automatic profile creation or browser enrollment endpoint.

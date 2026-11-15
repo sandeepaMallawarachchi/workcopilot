@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "check:edge": "deno check --config supabase/functions/deno.json supabase/functions/*/index.ts",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "db:bundle": "node scripts/generate-supabase-setup.mjs"
   },
   "dependencies": {
     "next": "16.4.6",
