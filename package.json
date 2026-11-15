@@ -1,0 +1,43 @@
+{
+  "name": "workcopilot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "check:edge": "deno check --config supabase/functions/deno.json supabase/functions/*/index.ts",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "@supabase/ssr": "0.8.0",
+    "@supabase/supabase-js": "2.119.0",
+    "zod": "4.6.7",
+    "lucide-react": "0.562.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.5",
+    "@tailwindcss/postcss": "4.3.5",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.6",
+    "vitest": "4.1.12",
+    "prettier": "3.8.1"
+  },
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": "24.x"
+  }
+}

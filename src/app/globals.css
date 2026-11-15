@@ -1,0 +1,65 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Only shared tokens and element defaults live here; component styles use Tailwind. */
+:root {
+  --bg: #f7f8fd;
+  --surface: #ffffff;
+  --text: #14182e;
+  --muted: #66718a;
+  --line: #e3e7f2;
+  --accent: #5134c9;
+  --soft: #eeedff;
+  --danger: #b43e47;
+  --danger-soft: #fff1f2;
+  color-scheme: light;
+}
+.dark {
+  --bg: #0b1020;
+  --surface: #121a30;
+  --text: #eef1ff;
+  --muted: #a3aec9;
+  --line: #293451;
+  --accent: #b7aeff;
+  --soft: #242044;
+  --danger: #fda4af;
+  --danger-soft: #351b2b;
+  color-scheme: dark;
+}
+@theme inline {
+  --color-canvas: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-border: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-brand-blue: #155dfb;
+  --color-brand-cyan: #00bfea;
+  --color-brand-purple: #6d28d9;
+  --font-sans:
+    var(--font-manrope), var(--font-sinhala), ui-sans-serif, system-ui, sans-serif;
+}
+@layer base {
+  body {
+    @apply bg-canvas font-sans text-sm leading-relaxed text-ink antialiased;
+  }
+  button,
+  [role="button"] {
+    @apply cursor-pointer;
+  }
+  button:disabled {
+    @apply cursor-not-allowed;
+  }
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+  ::selection {
+    background: #7057e530;
+  }
+}

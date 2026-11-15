@@ -1,0 +1,2 @@
+-- No contacts or administrator credentials are automatically trusted.
+-- Provision your Auth user, then run the documented profile INSERT with that user's UUID.

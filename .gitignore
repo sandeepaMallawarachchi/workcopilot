@@ -1,0 +1,12 @@
+node_modules
+.next
+.env*
+!.env.example
+coverage
+*.tsbuildinfo
+supabase/.temp
+.DS_Store
+
+*.pem
+*.key
+.secrets/
