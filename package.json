@@ -12,7 +12,9 @@
     "check:edge": "deno check --config supabase/functions/deno.json supabase/functions/*/index.ts",
     "format": "prettier --write .",
     "db:bundle": "node scripts/generate-supabase-setup.mjs",
-    "auth:check": "node scripts/diagnose-auth.mjs"
+    "auth:check": "node scripts/diagnose-auth.mjs",
+    "whatsapp:check": "node scripts/diagnose-whatsapp.mjs",
+    "secrets:prepare": "node scripts/prepare-edge-secrets.mjs"
   },
   "dependencies": {
     "next": "16.4.6",
