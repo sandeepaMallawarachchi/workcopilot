@@ -1,5 +1,10 @@
 "use server";
 import { z } from "zod";
+import {
+  loginSchema,
+  loginFailureCode,
+  type LoginErrorCode,
+} from "@/lib/validation/login";
 import type { FormActionResult } from "@/lib/types/form";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -14,11 +19,22 @@ function checked(result: { error: unknown }) {
 const idSchema = z.uuid();
 export async function login(form: FormData) {
   if (!configured()) redirect("/setup");
-  const email = z.email().parse(form.get("email"));
-  const password = z.string().min(8).max(200).parse(form.get("password"));
+  const parsed = loginSchema.safeParse({
+    email: form.get("email"),
+    password: form.get("password"),
+  });
+  if (!parsed.success) redirect("/login?error=invalid_input");
+
   const db = await supabase();
-  const { error } = await db.auth.signInWithPassword({ email, password });
-  if (error) redirect("/login?error=login");
+  let failure: LoginErrorCode | null = null;
+  try {
+    const { error } = await db.auth.signInWithPassword(parsed.data);
+    if (error) failure = loginFailureCode(error);
+  } catch {
+    failure = "unavailable";
+  }
+  // Keep redirects outside the catch: Next.js implements them by throwing.
+  if (failure) redirect(`/login?error=${failure}`);
   redirect("/dashboard");
 }
 export async function logout() {

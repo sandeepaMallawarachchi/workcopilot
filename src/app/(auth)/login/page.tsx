@@ -4,6 +4,8 @@ import { AuthLayout } from "@/components/layout/auth-layout";
 import { SubmitButton } from "@/components/forms/action-form";
 import { Field, Input } from "@/components/ui/form";
 import { Eyebrow } from "@/components/ui";
+import { PasswordInput } from "@/components/ui/password-input";
+import { loginErrorMessage } from "@/lib/validation/login";
 
 export default async function Login({
   searchParams,
@@ -23,9 +25,7 @@ export default async function Login({
           role="alert"
           className="mt-6 rounded-xl border border-danger/20 bg-danger-soft px-4 py-3 text-xs leading-6 text-danger"
         >
-          {error === "unauthorized"
-            ? "This account has not been provisioned as an administrator."
-            : "Sign-in failed. Check your email and password."}
+          {loginErrorMessage(error)}
         </p>
       )}
       <form action={login} className="mt-8 flex flex-col gap-5">
@@ -38,16 +38,19 @@ export default async function Login({
             placeholder="you@example.com"
           />
         </Field>
-        <Field label="Password">
-          <Input
+        <div className="flex flex-col gap-2">
+          <label htmlFor="login-password" className="text-sm font-semibold text-ink">
+            Password
+          </label>
+          <PasswordInput
+            id="login-password"
             name="password"
-            type="password"
             autoComplete="current-password"
-            minLength={8}
+            maxLength={1024}
             required
             placeholder="Your password"
           />
-        </Field>
+        </div>
         <SubmitButton pendingLabel="Signing in…" className="mt-2 w-full">
           Sign in <ArrowRight size={16} aria-hidden="true" />
         </SubmitButton>

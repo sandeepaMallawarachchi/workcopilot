@@ -11,7 +11,8 @@
     "test": "vitest run",
     "check:edge": "deno check --config supabase/functions/deno.json supabase/functions/*/index.ts",
     "format": "prettier --write .",
-    "db:bundle": "node scripts/generate-supabase-setup.mjs"
+    "db:bundle": "node scripts/generate-supabase-setup.mjs",
+    "auth:check": "node scripts/diagnose-auth.mjs"
   },
   "dependencies": {
     "next": "16.4.6",

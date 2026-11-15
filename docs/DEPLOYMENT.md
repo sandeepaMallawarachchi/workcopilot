@@ -74,6 +74,18 @@ values ('YOUR_AUTH_USER_UUID','00000000-0000-0000-0000-000000000001','YOUR_ADMIN
 
 `ADMIN_EMAIL` documents your intended administrator; it does not grant access. The profile row is the authorization source. A newly signed-up user without that row cannot access any workspace data. Set Auth Site URL to your eventual Vercel URL; for development use `http://localhost:3000`. No OAuth callback is needed for the implemented password sign-in flow. Configure Supabase Auth rate limits for your environment.
 
+### Diagnose sign-in without exposing passwords
+
+```sh
+npm run auth:check
+```
+
+This read-only local command uses your server key to check the configured administrator email, a possible `gmail.com`/`gmil.com` spelling mismatch, email confirmation and the profile associated with the Auth user ID. It never prints keys, sessions or passwords and does not modify users. Run it only in a trusted terminal. A missing Auth user or incorrect password produces an authentication failure; a missing profile is a separate administrator authorization failure. `ADMIN_EMAIL` does not create an account or override its Auth email.
+
+Use the exact email under Supabase Authentication → Users. If an email was created with a typo, correct the Auth account through Supabase and update the corresponding profile email and local `ADMIN_EMAIL`; changing `.env` alone does not change the registered account. The dashboard password is the password set for that Auth user, not the project database or Supabase website password.
+
+The login form provides a keyboard-accessible show/hide password button. Authentication feedback distinguishes rejected credentials, an unconfirmed email, rate limiting and service unavailability without displaying upstream errors. Fast Refresh and unused-preload warnings do not indicate rejected credentials.
+
 ## 3. Secrets and client-safe configuration
 
 Copy `.env.example` to ignored `.env.local` for Next.js development. Set only the following as browser-safe variables:
