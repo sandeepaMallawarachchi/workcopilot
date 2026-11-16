@@ -4,7 +4,7 @@ import { ActionForm, SubmitButton } from "@/components/forms/action-form";
 import { ConversationMessage } from "@/components/conversations/message";
 import { RefreshButton } from "@/components/conversations/refresh-button";
 import { ChatScroll } from "@/components/conversations/chat-scroll";
-import { PageTitle, Panel, Empty, assertData } from "@/components/ui";
+import { Panel, Empty, assertData } from "@/components/ui";
 
 export default async function Conversations() {
   const { db, workspace } = await requireAdmin();
@@ -26,13 +26,10 @@ export default async function Conversations() {
   assertData(history.error);
   return (
     <>
-      <PageTitle
-        eyebrow="ACTIVATED MESSAGES ONLY"
-        title="Conversations with context."
-        description="Requests, replies, and the evidence behind them. Messages outside an @ai conversation stay private."
-      >
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-lg font-bold tracking-tight text-ink">Conversations</h1>
         <RefreshButton />
-      </PageTitle>
+      </div>
       {!result.data?.length ? (
         <Panel title="Conversation history">
           <Empty

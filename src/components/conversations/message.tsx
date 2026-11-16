@@ -61,15 +61,15 @@ export function ConversationMessage({ message }: { message: ConversationMessageD
       aria-label={assistant ? "WorkCopilot reply" : "Incoming request"}
       className={cn(
         "flex max-w-[85%] flex-col gap-1 sm:max-w-[70%]",
-        assistant ? "items-end self-end" : "items-start self-start",
+        assistant ? "items-start self-start" : "items-end self-end",
       )}
     >
       <div
         className={cn(
           "min-w-0 max-w-full rounded-2xl border px-3.5 py-2 text-sm leading-6 wrap-anywhere text-ink",
           assistant
-            ? "rounded-br-md border-accent/10 bg-accent-soft/70"
-            : "rounded-bl-md border-border bg-canvas whitespace-pre-wrap",
+            ? "rounded-bl-md border-border bg-canvas"
+            : "rounded-br-md border-accent/10 bg-accent-soft/70 whitespace-pre-wrap",
         )}
       >
         {assistant ? <Markdown>{message.content}</Markdown> : message.content}
@@ -99,7 +99,7 @@ export function ConversationMessage({ message }: { message: ConversationMessageD
       <div
         className={cn(
           "flex flex-wrap items-center gap-2 px-1",
-          assistant && "justify-end",
+          !assistant && "justify-end",
         )}
       >
         <time

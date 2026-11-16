@@ -130,7 +130,7 @@ export default function Shell({
         </div>
       </aside>
       <div className="lg:ml-64">
-        <header className="flex min-h-18 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3 sm:px-7 xl:px-10">
+        <header className="z-20 flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface/90 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-surface/80 sm:px-7 lg:sticky lg:top-0 xl:px-10">
           <nav
             aria-label="Breadcrumb"
             className="flex items-center gap-3 text-xs text-muted"

@@ -56,7 +56,7 @@ export function ChatScroll({ label, children }: { label: string; children: React
         role="region"
         aria-label={label}
         tabIndex={0}
-        className="max-h-[65vh] overflow-y-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        className="max-h-[calc(100dvh-15rem)] overflow-y-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
       >
         <div ref={content} className="flex flex-col gap-3 p-4 sm:px-6">
           {children}
