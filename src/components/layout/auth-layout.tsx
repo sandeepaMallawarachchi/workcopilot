@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { GitBranch, GitPullRequest, ShieldCheck } from "lucide-react";
+import { GitBranch, ShieldCheck } from "lucide-react";
 import {
   SiGithub,
   SiGitlab,
   SiGmail,
   SiGooglecalendar,
   SiGoogledrive,
+  SiMeta,
   SiWhatsapp,
 } from "react-icons/si";
 
@@ -50,8 +51,8 @@ const FLOATING = [
     motion: "motion-safe:animate-float",
   },
   {
-    Icon: GitPullRequest,
-    color: undefined,
+    Icon: SiMeta,
+    color: "#0467DF",
     top: "54%",
     left: "88%",
     size: "md",
@@ -87,6 +88,7 @@ const FLOATING = [
   },
 ] as const;
 import { BrandLogo } from "@/components/brand";
+import { Credit } from "@/components/credit";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -170,6 +172,24 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         <div className="w-full max-w-sm [animation-delay:150ms] motion-safe:animate-fade-up">
           {children}
         </div>
+        <footer className="mt-12 flex w-full max-w-sm flex-col items-center gap-2 text-center text-[11px] text-muted lg:absolute lg:bottom-6 lg:mt-0">
+          <nav aria-label="Legal" className="flex items-center gap-3">
+            <Link
+              href="/privacy"
+              className="rounded hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Privacy Policy
+            </Link>
+            <span aria-hidden="true">·</span>
+            <Link
+              href="/terms"
+              className="rounded hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Terms &amp; Conditions
+            </Link>
+          </nav>
+          <Credit />
+        </footer>
       </main>
     </div>
   );
