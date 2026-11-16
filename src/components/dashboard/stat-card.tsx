@@ -1,17 +1,22 @@
 import Link from "next/link";
 import { ArrowUpRight, type LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
+import { cn } from "@/lib/utils";
 
 export function StatCard({
   label,
   value,
   description,
   icon: Icon,
+  iconClassName,
   href,
 }: {
   label: string;
   value: number;
   description: string;
-  icon: LucideIcon;
+  icon: LucideIcon | IconType;
+  /** Overrides the default accent colour, e.g. for a brand mark. */
+  iconClassName?: string;
   href: string;
 }) {
   return (
@@ -21,7 +26,11 @@ export function StatCard({
     >
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-medium text-muted">{label}</span>
-        <Icon size={17} aria-hidden="true" className="text-accent/70" />
+        <Icon
+          size={17}
+          aria-hidden="true"
+          className={cn("text-accent/70", iconClassName)}
+        />
       </div>
       <p className="mt-4 text-3xl leading-none font-semibold tracking-tight text-ink tabular-nums">
         {new Intl.NumberFormat("en-GB").format(value)}

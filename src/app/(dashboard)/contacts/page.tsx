@@ -1,7 +1,15 @@
 import { requireAdmin } from "@/lib/auth";
 import { addContact, updateContact } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms/action-form";
-import { PageTitle, Panel, Empty, Badge, date, assertData } from "@/components/ui";
+import {
+  PageTitle,
+  Panel,
+  Empty,
+  Badge,
+  date,
+  assertData,
+  WhatsAppIcon,
+} from "@/components/ui";
 import { Checkbox, Field, Input, Select } from "@/components/ui/form";
 
 export default async function Contacts() {
@@ -60,7 +68,10 @@ export default async function Contacts() {
                         <h3 className="text-sm font-semibold text-ink">
                           {contact.display_name}
                         </h3>
-                        <p className="mt-1 text-xs text-muted">{contact.phone}</p>
+                        <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted">
+                          <WhatsAppIcon size={12} />
+                          {contact.phone}
+                        </p>
                       </div>
                       <Badge good={contact.active && contact.ai_access}>
                         {!contact.active

@@ -1,4 +1,5 @@
-import { CheckCheck, MessageSquare, TriangleAlert, Users, Workflow } from "lucide-react";
+import { CheckCheck, TriangleAlert, Users, Workflow } from "lucide-react";
+import { SiWhatsapp } from "react-icons/si";
 import { requireAdmin } from "@/lib/auth";
 import { AgentHero } from "@/components/dashboard/agent-hero";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -75,7 +76,8 @@ export default async function Dashboard() {
           label="Requests received"
           value={jobs.count ?? 0}
           description="Explicitly activated messages"
-          icon={MessageSquare}
+          icon={SiWhatsapp}
+          iconClassName="text-[#25D366]"
           href="/conversations"
         />
         <StatCard

@@ -2,14 +2,15 @@ import Link from "next/link";
 import { ArrowUpRight, Inbox, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import type { IconType } from "react-icons";
 import {
-  siGithub,
-  siGitlab,
-  siGmail,
-  siGoogledrive,
-  siGooglecalendar,
-  type SimpleIcon,
-} from "simple-icons";
+  SiGithub,
+  SiGitlab,
+  SiGmail,
+  SiGoogledrive,
+  SiGooglecalendar,
+  SiWhatsapp,
+} from "react-icons/si";
 
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
@@ -145,12 +146,15 @@ export function PanelNote({ children }: { children: ReactNode }) {
     </div>
   );
 }
-const brandIcons: Record<string, SimpleIcon> = {
-  github: siGithub,
-  gitlab: siGitlab,
-  gmail: siGmail,
-  "google drive": siGoogledrive,
-  "google calendar": siGooglecalendar,
+// Official brand marks (react-icons/si). GitHub is monochrome per its brand
+// guidelines and follows the theme; the rest use their brand colours.
+const brandIcons: Record<string, { Icon: IconType; color?: string }> = {
+  github: { Icon: SiGithub },
+  gitlab: { Icon: SiGitlab, color: "#FC6D26" },
+  gmail: { Icon: SiGmail, color: "#EA4335" },
+  "google drive": { Icon: SiGoogledrive, color: "#4285F4" },
+  "google calendar": { Icon: SiGooglecalendar, color: "#4285F4" },
+  whatsapp: { Icon: SiWhatsapp, color: "#25D366" },
 };
 export function ProviderIcon({
   provider,
@@ -159,7 +163,7 @@ export function ProviderIcon({
   provider: string;
   large?: boolean;
 }) {
-  const icon = brandIcons[provider.toLowerCase()];
+  const brand = brandIcons[provider.toLowerCase()];
   return (
     <span
       aria-hidden="true"
@@ -168,21 +172,24 @@ export function ProviderIcon({
         large ? "size-13 text-base" : "size-10 text-xs",
       )}
     >
-      {icon ? (
-        <svg
-          role="img"
-          viewBox="0 0 24 24"
-          className={large ? "size-7" : "size-5"}
-          // GitHub's mark is monochrome per its brand guidelines, so it follows the
-          // theme's text colour; other marks use their official brand colour.
-          fill={icon === siGithub ? "currentColor" : `#${icon.hex}`}
-        >
-          <path d={icon.path} />
-        </svg>
+      {brand ? (
+        <brand.Icon size={large ? 28 : 20} color={brand.color} />
       ) : (
         provider.slice(0, 1).toUpperCase()
       )}
     </span>
+  );
+}
+/** Official WhatsApp mark in its brand green. */
+export function WhatsAppIcon({
+  size = 16,
+  className,
+}: {
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <SiWhatsapp size={size} color="#25D366" aria-hidden="true" className={className} />
   );
 }
 export function DataTable({

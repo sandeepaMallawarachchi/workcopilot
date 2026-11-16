@@ -70,3 +70,78 @@
 .legal-content code {
   @apply rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[0.9em] text-ink;
 }
+
+/* Motion: gentle, slow and decorative. Apply with motion-safe:animate-* so
+   people who prefer reduced motion get a still layout. */
+@theme {
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-late: float 7s ease-in-out 1.5s infinite;
+  --animate-float-slow: float 9s ease-in-out 0.8s infinite;
+  --animate-orbit: orbit 24s linear infinite;
+  --animate-orbit-reverse: orbit 36s linear infinite reverse;
+  --animate-glow: glow 4s ease-in-out infinite;
+  --animate-flow: flow 3.2s ease-in-out infinite;
+  --animate-flow-late: flow 3.2s ease-in-out 1.6s infinite;
+  --animate-fade-up: fade-up 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-drift: drift 16s ease-in-out infinite;
+  --animate-drift-late: drift 20s ease-in-out 3s infinite reverse;
+
+  @keyframes float {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -10px;
+    }
+  }
+  @keyframes orbit {
+    to {
+      rotate: 360deg;
+    }
+  }
+  @keyframes glow {
+    0%,
+    100% {
+      box-shadow: 0 0 40px #5c74ff1f;
+    }
+    50% {
+      box-shadow: 0 0 80px #7c5cff4d;
+    }
+  }
+  @keyframes flow {
+    0% {
+      left: 0%;
+      opacity: 0;
+    }
+    15%,
+    85% {
+      opacity: 1;
+    }
+    100% {
+      left: 100%;
+      opacity: 0;
+    }
+  }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      translate: 0 14px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+  @keyframes drift {
+    0%,
+    100% {
+      translate: 0 0;
+      scale: 1;
+    }
+    50% {
+      translate: 40px -30px;
+      scale: 1.15;
+    }
+  }
+}

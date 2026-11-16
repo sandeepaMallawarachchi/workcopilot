@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  ArrowUpRight,
   Blocks,
   LayoutDashboard,
   LogOut,
@@ -15,9 +14,10 @@ import {
   Users,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand";
+import { Credit } from "@/components/credit";
 import { SubmitButton } from "@/components/forms/action-form";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { Badge } from "@/components/ui";
+import { Badge, WhatsAppIcon } from "@/components/ui";
 import { disableAI, logout } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
@@ -142,7 +142,8 @@ export default function Shell({
             <span className="font-semibold text-ink">{active?.label ?? "Overview"}</span>
           </nav>
           <div className="flex items-center gap-1 sm:gap-2">
-            <span className="mr-2 hidden rounded-md border border-border px-2 py-1 text-[9px] font-semibold tracking-widest text-muted xl:inline">
+            <span className="mr-2 hidden items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[9px] font-semibold tracking-widest text-muted xl:inline-flex">
+              <WhatsAppIcon size={11} />
               META TEST NUMBER
             </span>
             <ThemeToggle />
@@ -183,18 +184,9 @@ export default function Shell({
         >
           {children}
         </main>
-        <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-4 py-5 text-[11px] text-muted sm:px-7 xl:px-10">
-          <span className="font-semibold text-ink">WorkCopilot</span>
-          <span>Beyond Answers. Into Action.</span>
-          <a
-            href="https://developers.facebook.com/apps/"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent sm:ml-auto"
-          >
-            Meta developer console <ArrowUpRight size={13} aria-hidden="true" />
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
+        <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border px-4 py-4 text-[11px] text-muted sm:px-7 xl:px-10">
+          <span>© {new Date().getFullYear()} WorkCopilot</span>
+          <Credit />
         </footer>
       </div>
     </div>
