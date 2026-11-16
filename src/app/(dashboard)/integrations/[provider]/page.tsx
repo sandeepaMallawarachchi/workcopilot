@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { RepoPicker } from "@/components/integrations/repo-picker";
+import { githubToken } from "../../../../../packages/agent-core/src/services/credentials";
+import { resolveGitHubRepositories } from "../../../../../packages/agent-core/src/tools/github";
+import { resolveGitLabProjects } from "../../../../../packages/agent-core/src/tools/gitlab";
 import { ArrowLeft, Lock } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { integration, saveIntegrationAccess } from "@/app/actions";
@@ -39,6 +43,44 @@ const meta = {
   },
 } as const;
 
+/**
+ * Everything the server credentials can read, for the picker. Failures are
+ * non-fatal: the picker still accepts typed paths.
+ */
+async function availableRepositories(
+  provider: "github" | "gitlab",
+): Promise<{ options: string[]; error?: string }> {
+  try {
+    const signal = AbortSignal.timeout(8000);
+    if (provider === "github") {
+      const token = await githubToken((k) => process.env[k]);
+      return { options: (await resolveGitHubRepositories(["*"], token, signal)).sort() };
+    }
+    const token = process.env.GITLAB_TOKEN?.trim();
+    if (!token)
+      return {
+        options: [],
+        error: "GITLAB_TOKEN is not set on the server, so the list can't be loaded.",
+      };
+    return {
+      options: (
+        await resolveGitLabProjects(
+          ["*"],
+          token,
+          process.env.GITLAB_BASE_URL || undefined,
+          signal,
+        )
+      ).sort(),
+    };
+  } catch {
+    return {
+      options: [],
+      error:
+        "Couldn't load the list from the provider. Check the server credentials; you can still type paths.",
+    };
+  }
+}
+
 export default async function IntegrationSettings({
   params,
 }: {
@@ -58,6 +100,7 @@ export default async function IntegrationSettings({
   assertData(error);
 
   const allowed: string[] = connection.allowed_repositories ?? [];
+  const available = await availableRepositories(provider);
   const capabilities: string[] = connection.capabilities ?? ALL_CAPABILITIES;
   const blocked: string[] = connection.blocked_paths ?? [];
   const visibleCapabilities = CAPABILITIES.filter(
@@ -101,7 +144,7 @@ export default async function IntegrationSettings({
           <ActionForm
             action={integration}
             successMessage="Connection settings updated. Check the verification status above."
-            className="p-5 sm:p-6 [&:has(input[name=all]:checked)_textarea]:pointer-events-none [&:has(input[name=all]:checked)_textarea]:opacity-40"
+            className="p-5 sm:p-6 [&:has(input[name=all]:checked)_[data-repo-picker]]:pointer-events-none [&:has(input[name=all]:checked)_[data-repo-picker]]:opacity-40"
           >
             <input type="hidden" name="provider" value={provider} />
             <div className="mb-5">
@@ -112,19 +155,15 @@ export default async function IntegrationSettings({
                 defaultChecked={allowed.includes("*")}
               />
             </div>
-            <Field
-              label={`Selected ${info.unit}`}
-              hint="One full path per line, up to 50. Each path is verified with the provider."
-            >
-              <Textarea
-                name="repositories"
-                defaultValue={allowed.filter((r) => r !== "*").join("\n")}
-                rows={5}
-                spellCheck={false}
-                autoCapitalize="none"
-                placeholder={info.placeholder}
-              />
-            </Field>
+            <p className="mb-2 text-sm font-semibold text-ink">Selected {info.unit}</p>
+            <RepoPicker
+              name="repositories"
+              options={available.options}
+              defaultSelected={allowed.filter((r) => r !== "*")}
+              placeholder={info.placeholder}
+              unit={info.unit}
+              loadError={available.error}
+            />
             <div className="mt-6 flex flex-wrap gap-3">
               <SubmitButton name="operation" value="connect" pendingLabel="Verifying…">
                 Verify & save
