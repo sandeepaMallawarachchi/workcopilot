@@ -3,6 +3,7 @@ import type { ToolDefinition } from "../providers/types.ts";
 import { GitHub } from "./github.ts";
 import { GitLab } from "./gitlab.ts";
 import { redact } from "../security/sanitization.ts";
+import { capabilityOf } from "../security/access.ts";
 const names = [
   "list_github_repositories",
   "search_github_code",
@@ -57,13 +58,22 @@ export class Registry {
     private github?: GitHub,
     private gitlab?: GitLab,
     private secrets: string[] = [],
+    /** Allowed capabilities per provider; omitted = everything allowed. */
+    private capabilities: { github?: string[]; gitlab?: string[] } = {},
   ) {}
+  private permitted(name: string) {
+    const provider = name.includes("_github_") ? "github" : "gitlab";
+    if (!(provider === "github" ? this.github : this.gitlab)) return false;
+    const needed = capabilityOf(name);
+    const allowed = this.capabilities[provider];
+    return !needed || !allowed || allowed.includes(needed);
+  }
   definitions(): ToolDefinition[] {
     // Compact per-tool schemas: only the parameters each tool uses. Every call
     // resends these, so size directly affects Groq tokens-per-minute limits.
     // Full validation still happens in execute() with the strict zod schema.
     return names
-      .filter((n) => (n.includes("_github_") ? !!this.github : !!this.gitlab))
+      .filter((n) => this.permitted(n))
       .map((name) => {
         const target = name.includes("_github_") ? "repository" : "project";
         const props: Record<string, Record<string, string>> = {};
@@ -123,6 +133,8 @@ export class Registry {
   async execute(name: string, raw: string, signal?: AbortSignal) {
     if (!names.includes(name as (typeof names)[number]))
       throw new Error("Tool denied by read-only registry");
+    if (!this.permitted(name))
+      throw new Error("This kind of access is turned off in the integration settings");
     // Models often send "" or "/" to mean "not specified"; normalize before the
     // strict schema so those calls succeed instead of failing validation.
     const parsed = JSON.parse(raw) as Record<string, unknown>;

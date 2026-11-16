@@ -250,6 +250,18 @@ end $$;
 drop trigger if exists settings_audit on public.agent_settings;
 create trigger settings_audit after update of ai_enabled,activation_prefix,followup_minutes,groq_model,max_tool_calls,language_behavior,response_length,context_messages,context_hours,retention_days on public.agent_settings for each row execute function public.audit_admin_change();
 
+-- Migration: 202611160002_integration_access.sql
+-- Per-integration agent access policy:
+--   capabilities  - kinds of data the agent may read (all enabled by default)
+--   blocked_paths - user path patterns the agent must never read, e.g. ".env*",
+--                   "config/secrets/" (built-in sensitive files are always blocked)
+alter table public.integrations
+  add column capabilities text[] not null
+    default '{code,commits,issues,pull_requests,pipelines}'
+    check (capabilities <@ array['code','commits','issues','pull_requests','pipelines']::text[]),
+  add column blocked_paths text[] not null default '{}'
+    check (cardinality(blocked_paths) <= 50);
+
 commit;
 
 -- After this succeeds, create your Auth user and provision its profiles row

@@ -2,6 +2,7 @@ import { formatTree } from "./github.ts";
 import { api, project, record, decodeBase64, array } from "./http.ts";
 import type { ToolArgs } from "./github.ts";
 import { safePath } from "../security/sanitization.ts";
+import { pathBlocked } from "../security/access.ts";
 import { ServiceError } from "../services/policies.ts";
 export class GitLab {
   constructor(
@@ -9,6 +10,8 @@ export class GitLab {
     readonly allowed: string[],
     private base = "https://gitlab.com",
     private fetcher: typeof fetch = fetch,
+    /** User-defined blocked path patterns (in addition to built-in ones). */
+    private blocked: string[] = [],
   ) {
     if (new URL(base).origin !== "https://gitlab.com")
       throw new ServiceError(
@@ -42,6 +45,8 @@ export class GitLab {
     const base = "/projects/" + encodeURIComponent(id);
     const paging = `per_page=20&page=${a.page}`;
     if (name === "get_gitlab_file") {
+      if (a.path && pathBlocked(a.path, this.blocked))
+        throw new ServiceError("This file is blocked by your access rules");
       if (!a.path || !safePath(a.path))
         throw new ServiceError("Sensitive file access denied");
       const f = record(
@@ -71,7 +76,7 @@ export class GitLab {
       }
       return {
         project: id,
-        ...formatTree(entries, a.path),
+        ...formatTree(entries, a.path, this.blocked),
         source: `${this.base}/${id}/-/tree/${encodeURIComponent(a.ref ?? "HEAD")}${a.path ? "/" + a.path : ""}`,
       };
     }
@@ -89,7 +94,10 @@ export class GitLab {
     const result = await get(base + routes[name]);
     const filtered =
       name === "search_gitlab_repository"
-        ? array(result).filter((x) => safePath(String(x.path ?? x.filename ?? "")))
+        ? array(result).filter((x) => {
+            const path = String(x.path ?? x.filename ?? "");
+            return safePath(path) && !pathBlocked(path, this.blocked);
+          })
         : result;
     return {
       data: project(filtered, [

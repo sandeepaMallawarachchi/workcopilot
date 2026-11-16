@@ -830,3 +830,69 @@ describe("GitLab all-projects selection", () => {
     expect(f).not.toHaveBeenCalled();
   });
 });
+
+describe("integration access policy", () => {
+  it("matches .gitignore-style blocked patterns", async () => {
+    const { pathBlocked, parseBlockedPatterns } =
+      await import("../packages/agent-core/src/security/access");
+    const rules = parseBlockedPatterns(
+      "*.env\nconfig/secrets/\ndocs/private/**, *.tfstate",
+    );
+    expect(pathBlocked("apps/web/prod.env", rules)).toBe(true);
+    expect(pathBlocked("config/secrets/db.json", rules)).toBe(true);
+    expect(pathBlocked("config/secrets", rules)).toBe(true);
+    expect(pathBlocked("other/config/secrets/x", rules)).toBe(false); // anchored
+    expect(pathBlocked("docs/private/a/b.md", rules)).toBe(true);
+    expect(pathBlocked("infra/terraform.tfstate", rules)).toBe(true);
+    expect(pathBlocked("src/env.ts", rules)).toBe(false);
+    expect(pathBlocked("README.md", rules)).toBe(false);
+    expect(pathBlocked("node_modules/x", parseBlockedPatterns("node_modules"))).toBe(
+      true,
+    );
+    expect(() => parseBlockedPatterns("../etc/passwd")).toThrow("Invalid");
+  });
+  it("never reads, lists or searches blocked files", async () => {
+    const tree = {
+      tree: [
+        { path: "src/app.ts", type: "blob", size: 10 },
+        { path: "config/secrets/db.json", type: "blob", size: 10 },
+        { path: ".env.local", type: "blob", size: 10 },
+      ],
+    };
+    const f = vi
+      .fn<typeof fetch>()
+      .mockImplementation(
+        async () => new Response(JSON.stringify(tree), { status: 200 }),
+      );
+    const gh = new GitHub("t", ["o/r"], f, ["config/secrets/"]);
+    const listed = (await gh.run("get_github_tree", { repository: "o/r", page: 1 })) as {
+      entries: string;
+    };
+    expect(listed.entries).toBe("src/app.ts");
+    await expect(
+      gh.run("get_github_file", {
+        repository: "o/r",
+        path: "config/secrets/db.json",
+        page: 1,
+      }),
+    ).rejects.toThrow("blocked by your access rules");
+  });
+  it("hides and refuses tools for disabled capabilities", async () => {
+    const registry = new Registry(
+      new GitHub("t", ["o/r"], fake(200, {})),
+      undefined,
+      [],
+      {
+        github: ["code"],
+      },
+    );
+    const names = registry.definitions().map((d) => d.function.name);
+    expect(names).toContain("get_github_file");
+    expect(names).toContain("list_github_repositories");
+    expect(names).not.toContain("list_github_commits");
+    expect(names).not.toContain("list_github_issues");
+    await expect(
+      registry.execute("list_github_commits", JSON.stringify({ repository: "o/r" })),
+    ).rejects.toThrow("turned off");
+  });
+});

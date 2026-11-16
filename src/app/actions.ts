@@ -13,6 +13,10 @@ import { supabase, service, configured } from "@/lib/supabase/server";
 import { normalizePhone } from "../../packages/agent-core/src/services/policies";
 import { githubToken } from "../../packages/agent-core/src/services/credentials";
 import { api, record } from "../../packages/agent-core/src/tools/http";
+import {
+  ALL_CAPABILITIES,
+  parseBlockedPatterns,
+} from "../../packages/agent-core/src/security/access";
 function checked(result: { error: unknown }) {
   if (result.error) throw new Error("The database change could not be saved");
 }
@@ -142,7 +146,7 @@ export async function integration(form: FormData): Promise<FormActionResult> {
         .eq("workspace_id", workspace)
         .eq("provider", provider),
     );
-    revalidatePath("/integrations");
+    revalidatePath("/integrations", "layout");
     return { ok: true, message: "Integration disconnected." };
   }
   // "*" = every repository the credential can access (GitHub App installation /
@@ -215,15 +219,40 @@ export async function integration(form: FormData): Promise<FormActionResult> {
         .eq("workspace_id", workspace)
         .eq("provider", provider),
     );
-    revalidatePath("/integrations");
+    revalidatePath("/integrations", "layout");
     return {
       ok: false,
       message:
         "Verification failed. Check your server credentials, repository paths, and access permissions.",
     };
   }
-  revalidatePath("/integrations");
+  revalidatePath("/integrations", "layout");
   return { ok: true, message: "Connection verified and repository selection saved." };
+}
+export async function saveIntegrationAccess(form: FormData): Promise<FormActionResult> {
+  const { workspace } = await requireAdmin();
+  const provider = z.enum(["github", "gitlab"]).parse(form.get("provider"));
+  const capabilities = z
+    .array(z.enum(ALL_CAPABILITIES as [string, ...string[]]))
+    .parse(form.getAll("capabilities"));
+  let blocked: string[];
+  try {
+    blocked = parseBlockedPatterns(String(form.get("blocked_paths") ?? ""));
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Invalid path pattern.",
+    };
+  }
+  checked(
+    await service()
+      .from("integrations")
+      .update({ capabilities, blocked_paths: blocked })
+      .eq("workspace_id", workspace)
+      .eq("provider", provider),
+  );
+  revalidatePath("/integrations", "layout");
+  return { ok: true, message: "Agent access rules saved." };
 }
 export async function clearHistory(form: FormData) {
   const { workspace, user } = await requireAdmin();

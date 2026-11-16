@@ -115,6 +115,8 @@ Deno.serve(async (req) => {
           ? new GitHub(
               token!,
               await resolveGitHubRepositories(gh.allowed_repositories, token!, deadline),
+              fetch,
+              gh.blocked_paths ?? [],
             )
           : undefined,
         gl
@@ -127,9 +129,13 @@ Deno.serve(async (req) => {
                 deadline,
               ),
               env("GITLAB_BASE_URL") || undefined,
+              fetch,
+              gl.blocked_paths ?? [],
             )
           : undefined,
         known,
+        // Tolerates a database without the access-policy migration (all allowed).
+        { github: gh?.capabilities ?? undefined, gitlab: gl?.capabilities ?? undefined },
       );
       const after = new Date(
         Math.max(

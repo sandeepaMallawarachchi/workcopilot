@@ -1,5 +1,6 @@
 import { api, array, record, project, decodeBase64 } from "./http.ts";
 import { safePath } from "../security/sanitization.ts";
+import { pathBlocked } from "../security/access.ts";
 import { ServiceError } from "../services/policies.ts";
 export type ToolArgs = {
   repository?: string;
@@ -16,6 +17,8 @@ export class GitHub {
     private token: string,
     readonly allowed: string[],
     private fetcher: typeof fetch = fetch,
+    /** User-defined blocked path patterns (in addition to built-in ones). */
+    private blocked: string[] = [],
   ) {}
   async run(name: string, a: ToolArgs, signal?: AbortSignal): Promise<unknown> {
     const get = (path: string) =>
@@ -40,6 +43,8 @@ export class GitHub {
     const paging = `per_page=20&page=${a.page}`;
     const ref = encodeURIComponent(a.ref ?? "HEAD");
     if (name === "get_github_file") {
+      if (a.path && pathBlocked(a.path, this.blocked))
+        throw new ServiceError("This file is blocked by your access rules");
       if (!a.path || !safePath(a.path))
         throw new ServiceError("Sensitive file access denied");
       const r = record(
@@ -68,6 +73,7 @@ export class GitHub {
             dir: x.type === "tree",
           })),
           a.path,
+          this.blocked,
         ),
         source: `https://github.com/${repo}/tree/${a.ref ?? "HEAD"}${a.path ? "/" + a.path : ""}`,
         truncated_by_github: tree.truncated === true,
@@ -82,6 +88,7 @@ export class GitHub {
           x.type === "blob" &&
           Number(x.size) <= 32000 &&
           safePath(String(x.path)) &&
+          !pathBlocked(String(x.path), this.blocked) &&
           !/\.(png|jpg|gif|woff2?|pdf|zip|lock|svg|map)$/i.test(String(x.path)),
       );
       const words = a.query.toLowerCase().split(/\s+/);
@@ -197,11 +204,18 @@ const NOISE =
 export function formatTree(
   entries: { path: string; dir: boolean }[],
   under?: string,
+  blocked: string[] = [],
   limit = 200,
 ) {
   const prefix = under ? under.replace(/\/+$/, "") + "/" : "";
   const kept = entries
-    .filter((e) => e.path.startsWith(prefix) && !NOISE.test(e.path))
+    .filter(
+      (e) =>
+        e.path.startsWith(prefix) &&
+        !NOISE.test(e.path) &&
+        safePath(e.path) &&
+        !pathBlocked(e.path, blocked),
+    )
     .map((e) => e.path + (e.dir ? "/" : ""))
     .sort();
   return {

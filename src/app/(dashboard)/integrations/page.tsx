@@ -1,17 +1,29 @@
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
-import { integration } from "@/app/actions";
-import { ActionForm, SubmitButton } from "@/components/forms/action-form";
-import { Field, Switch, Textarea } from "@/components/ui/form";
-import {
-  PageTitle,
-  Panel,
-  Badge,
-  StatusBadge,
-  PanelNote,
-  ProviderIcon,
-  date,
-  assertData,
-} from "@/components/ui";
+import { Badge, StatusBadge, ProviderIcon, date, assertData } from "@/components/ui";
+
+const providers = [
+  {
+    id: "github",
+    name: "GitHub",
+    blurb: "Repositories, commits, issues and pull requests.",
+  },
+  {
+    id: "gitlab",
+    name: "GitLab",
+    blurb: "Projects, commits, issues, merge requests and pipelines.",
+  },
+] as const;
+
+function scopeSummary(provider: string, allowed: string[]) {
+  if (allowed.includes("*"))
+    return provider === "github" ? "All repositories" : "All projects";
+  if (!allowed.length) return "None selected";
+  const [one, many] =
+    provider === "github" ? ["repository", "repositories"] : ["project", "projects"];
+  return `${allowed.length} ${allowed.length === 1 ? one : many}`;
+}
 
 export default async function Integrations() {
   const { db, workspace } = await requireAdmin();
@@ -20,121 +32,81 @@ export default async function Integrations() {
     .select("*")
     .eq("workspace_id", workspace);
   assertData(error);
+  const byProvider = new Map((data ?? []).map((row) => [row.provider, row]));
+
   return (
     <>
-      <PageTitle
-        eyebrow="CONNECTED, WITH BOUNDARIES"
-        title="Your tools. Your permission."
-        description="Real answers start with real sources. Choose exactly what your agent can read."
-      />
-      <div className="grid items-start gap-6 xl:grid-cols-2">
-        {data?.map((connection) => (
-          <Panel
-            key={connection.id}
-            title={connection.provider === "github" ? "GitHub" : "GitLab"}
-          >
-            <div className="flex items-start gap-4 px-5 pt-6 sm:px-6">
-              <ProviderIcon provider={connection.provider} large />
-              <div className="min-w-0">
-                <StatusBadge status={connection.status} />
-                <p className="mt-2 text-sm font-medium break-words text-ink">
-                  {connection.account ?? "No account connected"}
-                </p>
-                <p className="mt-1.5 text-xs text-muted">
-                  Last verified: {date(connection.last_sync_at)}
-                </p>
-              </div>
-            </div>
-            {connection.error && (
-              <p
-                role="alert"
-                className="mx-5 mt-5 rounded-xl border border-danger/20 bg-danger-soft px-4 py-3 text-xs leading-6 text-danger sm:mx-6"
-              >
-                {connection.error}
-              </p>
-            )}
-            <ActionForm
-              action={integration}
-              successMessage="Connection settings updated. Check the verification status above."
-              className="p-5 sm:p-6 [&:has(input[name=all]:checked)_textarea]:pointer-events-none [&:has(input[name=all]:checked)_textarea]:opacity-40"
-            >
-              <input type="hidden" name="provider" value={connection.provider} />
-              <div className="mb-5">
-                <Switch
-                  name="all"
-                  label={
-                    connection.provider === "github"
-                      ? "Allow all repositories"
-                      : "Allow all projects"
-                  }
-                  description={
-                    connection.provider === "github"
-                      ? "Read any repository the GitHub App installation can access, including ones you add to it later. The list below is ignored while this is on."
-                      : "Read any GitLab project the token's account is a member of, including ones you join later. The list below is ignored while this is on."
-                  }
-                  defaultChecked={connection.allowed_repositories.includes("*")}
-                />
-              </div>
-              <Field
-                label={`Authorized ${connection.provider === "github" ? "repositories" : "projects"}`}
-                hint="One full path per line, up to 50. Leave empty to permit no repository reads. Each path is verified with the provider."
-              >
-                <Textarea
-                  name="repositories"
-                  defaultValue={connection.allowed_repositories
-                    .filter((repo: string) => repo !== "*")
-                    .join("\n")}
-                  rows={4}
-                  spellCheck={false}
-                  autoCapitalize="none"
-                  placeholder={
-                    connection.provider === "github"
-                      ? "owner/repository"
-                      : "group/project"
-                  }
-                />
-              </Field>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <SubmitButton name="operation" value="connect" pendingLabel="Verifying…">
-                  Verify & save selection
-                </SubmitButton>
-                <SubmitButton
-                  name="operation"
-                  value="disconnect"
-                  variant="secondary"
-                  pendingLabel="Disconnecting…"
-                  disabled={connection.status === "disconnected"}
-                  confirmMessage="Disconnect this integration? The agent will lose access to its repositories."
-                >
-                  Disconnect
-                </SubmitButton>
-              </div>
-            </ActionForm>
-            <PanelNote>
-              Credentials stay on the server. Your agent has read access only.
-            </PanelNote>
-          </Panel>
-        ))}
+      <div>
+        <h1 className="text-lg font-bold tracking-tight text-ink">Integrations</h1>
+        <p className="mt-1 text-sm text-muted">
+          Choose what your agent can read. Open a service to configure it.
+        </p>
       </div>
-      <section aria-label="Future integrations" className="grid gap-4 md:grid-cols-3">
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {providers.map((p) => {
+          const row = byProvider.get(p.id);
+          const blocked = (row?.blocked_paths ?? []).length;
+          return (
+            <Link
+              key={p.id}
+              href={`/integrations/${p.id}`}
+              className="group flex flex-col rounded-2xl border border-border bg-surface p-5 shadow-xs transition hover:border-accent/40 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent motion-reduce:transition-none"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <ProviderIcon provider={p.id} large />
+                <StatusBadge status={row?.status ?? "disconnected"} />
+              </div>
+              <h2 className="mt-4 text-sm font-semibold text-ink">{p.name}</h2>
+              <p className="mt-1 text-xs leading-5 text-muted">{p.blurb}</p>
+              <dl className="mt-4 space-y-1.5 border-t border-border pt-3 text-xs">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted">Access</dt>
+                  <dd className="text-right font-medium text-ink">
+                    {scopeSummary(p.id, row?.allowed_repositories ?? [])}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted">Blocked paths</dt>
+                  <dd className="text-right font-medium text-ink">
+                    {blocked ? `Built-in + ${blocked} custom` : "Built-in only"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted">Last verified</dt>
+                  <dd className="text-right text-ink">
+                    {date(row?.last_sync_at ?? null)}
+                  </dd>
+                </div>
+              </dl>
+              <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-accent">
+                Configure
+                <ChevronRight
+                  size={14}
+                  aria-hidden="true"
+                  className="transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
+                />
+              </span>
+            </Link>
+          );
+        })}
+
         {["Gmail", "Google Drive", "Google Calendar"].map((name) => (
           <article
             key={name}
-            className="rounded-2xl border border-dashed border-border bg-surface/50 p-5"
+            className="flex flex-col rounded-2xl border border-dashed border-border bg-surface/50 p-5"
           >
-            <div className="flex items-center gap-3">
-              <ProviderIcon provider={name} />
-              <h2 className="text-sm font-semibold text-ink">{name}</h2>
-            </div>
-            <div className="mt-5">
+            <div className="flex items-start justify-between gap-3">
+              <ProviderIcon provider={name} large />
               <Badge>Coming later</Badge>
-              <p className="mt-3 text-xs leading-6 text-muted">
-                More of your work, in one conversation.
-              </p>
             </div>
+            <h2 className="mt-4 text-sm font-semibold text-ink">{name}</h2>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              More of your work, in one conversation.
+            </p>
           </article>
         ))}
-      </section>
+      </div>
     </>
   );
 }
