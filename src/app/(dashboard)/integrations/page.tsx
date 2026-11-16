@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { integration } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms/action-form";
-import { Field, Textarea } from "@/components/ui/form";
+import { Field, Switch, Textarea } from "@/components/ui/form";
 import {
   PageTitle,
   Panel,
@@ -56,16 +56,28 @@ export default async function Integrations() {
             <ActionForm
               action={integration}
               successMessage="Connection settings updated. Check the verification status above."
-              className="p-5 sm:p-6"
+              className="p-5 sm:p-6 [&:has(input[name=all]:checked)_textarea]:pointer-events-none [&:has(input[name=all]:checked)_textarea]:opacity-40"
             >
               <input type="hidden" name="provider" value={connection.provider} />
+              {connection.provider === "github" && (
+                <div className="mb-5">
+                  <Switch
+                    name="all"
+                    label="Allow all repositories"
+                    description="Read any repository the GitHub App installation can access, including ones you add to it later. The list below is ignored while this is on."
+                    defaultChecked={connection.allowed_repositories.includes("*")}
+                  />
+                </div>
+              )}
               <Field
                 label={`Authorized ${connection.provider === "github" ? "repositories" : "projects"}`}
                 hint="One full path per line, up to 50. Leave empty to permit no repository reads. Each path is verified with the provider."
               >
                 <Textarea
                   name="repositories"
-                  defaultValue={connection.allowed_repositories.join("\n")}
+                  defaultValue={connection.allowed_repositories
+                    .filter((repo: string) => repo !== "*")
+                    .join("\n")}
                   rows={4}
                   spellCheck={false}
                   autoCapitalize="none"

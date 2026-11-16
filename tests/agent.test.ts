@@ -11,7 +11,10 @@ import {
   verifySignature,
 } from "../packages/agent-core/src/services/webhook";
 import { groq } from "../packages/agent-core/src/providers/groq";
-import { GitHub } from "../packages/agent-core/src/tools/github";
+import {
+  GitHub,
+  resolveGitHubRepositories,
+} from "../packages/agent-core/src/tools/github";
 import { GitLab } from "../packages/agent-core/src/tools/gitlab";
 import { Registry } from "../packages/agent-core/src/tools/registry";
 import { redact, safePath } from "../packages/agent-core/src/security/sanitization";
@@ -652,7 +655,7 @@ describe("latency and token efficiency", () => {
     });
     const list = defs.find((d) => d.function.name === "list_github_repositories")!;
     expect(Object.keys(list.function.parameters.properties as object)).toEqual(["page"]);
-    expect(registry.scope()).toContain("GitHub repository: o/r");
+    expect(registry.scope()).toContain("GitHub repositories: o/r");
   });
   it("trims long history messages", () => {
     const out = contextFor(
@@ -701,5 +704,21 @@ describe("latency and token efficiency", () => {
       message_id: "wamid.in",
       typing_indicator: { type: "text" },
     });
+  });
+});
+
+describe("all-repositories selection", () => {
+  it("resolves * to the installation's repositories", async () => {
+    const f = fake(200, { repositories: [{ full_name: "o/a" }, { full_name: "o/b" }] });
+    expect(await resolveGitHubRepositories(["*"], "t", undefined, f)).toEqual([
+      "o/a",
+      "o/b",
+    ]);
+    expect(String(f.mock.calls[0][0])).toContain("/installation/repositories");
+  });
+  it("leaves explicit selections untouched without API calls", async () => {
+    const f = fake(200, {});
+    expect(await resolveGitHubRepositories(["o/r"], "t", undefined, f)).toEqual(["o/r"]);
+    expect(f).not.toHaveBeenCalled();
   });
 });

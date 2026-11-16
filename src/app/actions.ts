@@ -144,14 +144,18 @@ export async function integration(form: FormData): Promise<FormActionResult> {
     revalidatePath("/integrations");
     return { ok: true, message: "Integration disconnected." };
   }
-  const allowed = z
-    .array(z.string().regex(/^[\w.-]+(?:\/[\w.-]+)+$/))
-    .max(50)
-    .parse(
-      String(form.get("repositories") ?? "")
-        .split(/[\s,]+/)
-        .filter(Boolean),
-    );
+  // "*" = every repository the GitHub App installation can access (resolved at run time).
+  const allowAll = provider === "github" && form.get("all") === "on";
+  const allowed = allowAll
+    ? ["*"]
+    : z
+        .array(z.string().regex(/^[\w.-]+(?:\/[\w.-]+)+$/))
+        .max(50)
+        .parse(
+          String(form.get("repositories") ?? "")
+            .split(/[\s,]+/)
+            .filter(Boolean),
+        );
   try {
     const token =
       provider === "github"
@@ -175,7 +179,7 @@ export async function integration(form: FormData): Promise<FormActionResult> {
       const r = record(await api(base + "/user", token, provider));
       account = String(r.login ?? r.username ?? r.id);
     }
-    for (const repo of allowed)
+    for (const repo of allowed.filter((r) => r !== "*"))
       await api(
         base +
           (provider === "github"

@@ -2,6 +2,14 @@ import Link from "next/link";
 import { ArrowUpRight, Inbox, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import {
+  siGithub,
+  siGitlab,
+  siGmail,
+  siGoogledrive,
+  siGooglecalendar,
+  type SimpleIcon,
+} from "simple-icons";
 
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
@@ -137,6 +145,13 @@ export function PanelNote({ children }: { children: ReactNode }) {
     </div>
   );
 }
+const brandIcons: Record<string, SimpleIcon> = {
+  github: siGithub,
+  gitlab: siGitlab,
+  gmail: siGmail,
+  "google drive": siGoogledrive,
+  "google calendar": siGooglecalendar,
+};
 export function ProviderIcon({
   provider,
   large = false,
@@ -144,18 +159,29 @@ export function ProviderIcon({
   provider: string;
   large?: boolean;
 }) {
+  const icon = brandIcons[provider.toLowerCase()];
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "grid shrink-0 place-items-center rounded-xl border font-bold",
+        "grid shrink-0 place-items-center rounded-xl border border-border bg-canvas font-bold text-ink",
         large ? "size-13 text-base" : "size-10 text-xs",
-        provider === "gitlab"
-          ? "border-orange-500/15 bg-orange-500/8 text-orange-700 dark:text-orange-300"
-          : "border-border bg-canvas text-ink",
       )}
     >
-      {provider === "github" ? "GH" : provider === "gitlab" ? "GL" : provider.slice(0, 1)}
+      {icon ? (
+        <svg
+          role="img"
+          viewBox="0 0 24 24"
+          className={large ? "size-7" : "size-5"}
+          // GitHub's mark is monochrome per its brand guidelines, so it follows the
+          // theme's text colour; other marks use their official brand colour.
+          fill={icon === siGithub ? "currentColor" : `#${icon.hex}`}
+        >
+          <path d={icon.path} />
+        </svg>
+      ) : (
+        provider.slice(0, 1).toUpperCase()
+      )}
     </span>
   );
 }

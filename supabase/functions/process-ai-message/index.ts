@@ -2,7 +2,10 @@ import { db, env, required, internal, check, secrets } from "../_shared/runtime.
 import { deliver } from "../_shared/deliver.ts";
 import { sendTypingIndicator } from "../../../packages/agent-core/src/services/delivery.ts";
 import { groq } from "../../../packages/agent-core/src/providers/groq.ts";
-import { GitHub } from "../../../packages/agent-core/src/tools/github.ts";
+import {
+  GitHub,
+  resolveGitHubRepositories,
+} from "../../../packages/agent-core/src/tools/github.ts";
 import { GitLab } from "../../../packages/agent-core/src/tools/gitlab.ts";
 import { Registry } from "../../../packages/agent-core/src/tools/registry.ts";
 import { runAgent } from "../../../packages/agent-core/src/services/agent.ts";
@@ -90,7 +93,12 @@ Deno.serve(async (req) => {
       const token = gh ? await githubToken(env) : undefined;
       const known = [...secrets(), ...(token ? [token] : [])];
       const registry = new Registry(
-        gh ? new GitHub(token!, gh.allowed_repositories) : undefined,
+        gh
+          ? new GitHub(
+              token!,
+              await resolveGitHubRepositories(gh.allowed_repositories, token!, deadline),
+            )
+          : undefined,
         gl
           ? new GitLab(
               required("GITLAB_TOKEN"),

@@ -103,11 +103,17 @@ export class Registry {
   }
   /** Allowed repositories/projects, so the model can skip a listing call. */
   scope(): string {
+    // One compact line per provider: this is resent on every model call.
+    const gh = this.github?.allowed ?? [];
+    const gl = this.gitlab?.allowed ?? [];
     return [
-      ...(this.github?.allowed ?? []).map((r) => `GitHub repository: ${r}`),
-      ...(this.gitlab?.allowed ?? []).map((p) => `GitLab project: ${p}`),
-    ].join("\n");
+      gh.length ? `GitHub repositories: ${gh.slice(0, 150).join(", ")}` : "",
+      gl.length ? `GitLab projects: ${gl.slice(0, 150).join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
+
   async execute(name: string, raw: string, signal?: AbortSignal) {
     if (!names.includes(name as (typeof names)[number]))
       throw new Error("Tool denied by read-only registry");

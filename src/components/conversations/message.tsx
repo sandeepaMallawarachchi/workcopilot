@@ -1,6 +1,7 @@
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 import { date, StatusBadge } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/conversations/markdown";
 import type { ConversationMessageData } from "@/lib/types/conversation";
 
 function time(value: string) {
@@ -39,13 +40,13 @@ export function ConversationMessage({ message }: { message: ConversationMessageD
     >
       <div
         className={cn(
-          "rounded-2xl border px-3.5 py-2 text-sm leading-6 wrap-anywhere whitespace-pre-wrap text-ink",
+          "min-w-0 max-w-full rounded-2xl border px-3.5 py-2 text-sm leading-6 wrap-anywhere text-ink",
           assistant
             ? "rounded-br-md border-accent/10 bg-accent-soft/70"
-            : "rounded-bl-md border-border bg-canvas",
+            : "rounded-bl-md border-border bg-canvas whitespace-pre-wrap",
         )}
       >
-        {message.content}
+        {assistant ? <Markdown>{message.content}</Markdown> : message.content}
         {sources.length > 0 && (
           <ul className="mt-2 space-y-0.5 border-t border-accent/10 pt-1.5">
             {sources.map((source, index) => (

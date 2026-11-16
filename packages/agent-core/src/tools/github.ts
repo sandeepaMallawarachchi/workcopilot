@@ -19,13 +19,7 @@ export class GitHub {
   ) {}
   async run(name: string, a: ToolArgs, signal?: AbortSignal): Promise<unknown> {
     const get = (path: string) =>
-      api(
-        "https://api.github.com" + path,
-        this.token,
-        "github",
-        signal,
-        this.fetcher,
-      );
+      api("https://api.github.com" + path, this.token, "github", signal, this.fetcher);
     if (name === "list_github_repositories") {
       const repos = [];
       for (const repo of this.allowed.slice((a.page - 1) * 20, a.page * 20))
@@ -97,10 +91,7 @@ export class GitHub {
               : [],
           )
           .slice(0, 8);
-        if (
-          hits.length ||
-          words.some((w) => String(file.path).toLowerCase().includes(w))
-        )
+        if (hits.length || words.some((w) => String(file.path).toLowerCase().includes(w)))
           matches.push({
             path: file.path,
             source: `https://github.com/${repo}/blob/${ref}/${String(file.path).split("/").map(encodeURIComponent).join("/")}`,
@@ -145,4 +136,41 @@ export class GitHub {
       per_page: 20,
     };
   }
+}
+
+/**
+ * Resolves the "*" (all repositories) selection to concrete full names that the
+ * credential can read: the GitHub App installation's repositories, falling back
+ * to the user's repositories for a development token. Bounded to 300.
+ */
+export async function resolveGitHubRepositories(
+  allowed: string[],
+  token: string,
+  signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<string[]> {
+  if (!allowed.includes("*")) return allowed;
+  const names = new Set(allowed.filter((r) => r !== "*"));
+  const collect = async (path: string, key?: string) => {
+    for (let page = 1; page <= 3; page++) {
+      const data = await api(
+        `https://api.github.com${path}${path.includes("?") ? "&" : "?"}per_page=100&page=${page}`,
+        token,
+        "github",
+        signal,
+        fetcher,
+      );
+      const list = key ? record(data)[key] : data;
+      const repos = array(list);
+      for (const repo of repos)
+        if (typeof repo.full_name === "string") names.add(repo.full_name);
+      if (repos.length < 100) break;
+    }
+  };
+  try {
+    await collect("/installation/repositories", "repositories");
+  } catch {
+    await collect("/user/repos?affiliation=owner,collaborator,organization_member");
+  }
+  return [...names];
 }

@@ -137,7 +137,9 @@ export default async function Dashboard() {
                     {connection.provider === "github" ? "GitHub" : "GitLab"}
                   </h3>
                   <p className="mt-1 text-[11px] text-muted">
-                    {connection.allowed_repositories.length} authorized repositories
+                    {connection.allowed_repositories.includes("*")
+                      ? "All installation repositories"
+                      : `${connection.allowed_repositories.length} authorized repositories`}
                   </p>
                 </div>
                 <StatusBadge status={connection.status} />
