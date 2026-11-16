@@ -32,7 +32,7 @@ async function errorCode(res: Response): Promise<string | undefined> {
   }
 }
 const maxRateLimitWaits = 3;
-const maxWaitMs = 30000;
+const maxWaitMs = 45000;
 function retryAfterMs(res: Response): number | undefined {
   const header = res.headers.get("retry-after");
   if (header === null) return 2000;

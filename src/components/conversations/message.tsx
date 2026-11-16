@@ -2,6 +2,7 @@ import { ArrowUpRight, ChevronDown } from "lucide-react";
 import { date, StatusBadge } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/conversations/markdown";
+import { describeFailure } from "../../../packages/agent-core/src/services/errors";
 import type { ConversationMessageData } from "@/lib/types/conversation";
 
 function time(value: string) {
@@ -29,6 +30,31 @@ export function ConversationMessage({ message }: { message: ConversationMessageD
     (job) => job.status !== "completed" || job.attempts > 1,
   );
   const tools = jobs.flatMap((job) => job.tool_executions ?? []);
+  // Plain-language explanation of failures, retries and undelivered replies.
+  const issues = jobs.flatMap((job) => {
+    const undelivered = (job.delivery_outbox ?? []).find((o) => o.status === "failed");
+    if (undelivered)
+      return [
+        {
+          id: job.id,
+          danger: true,
+          text: `Reply not delivered to WhatsApp. ${describeFailure(undelivered.error)}`,
+        },
+      ];
+    if (["dead", "manual_review"].includes(job.status))
+      return [
+        { id: job.id, danger: true, text: `Failed. ${describeFailure(job.error)}` },
+      ];
+    if (job.status === "retry" && job.error)
+      return [
+        {
+          id: job.id,
+          danger: false,
+          text: `Retrying automatically. ${describeFailure(job.error)}`,
+        },
+      ];
+    return [];
+  });
 
   return (
     <article
@@ -116,6 +142,20 @@ export function ConversationMessage({ message }: { message: ConversationMessageD
           </details>
         )}
       </div>
+      {issues.map((issue) => (
+        <p
+          key={issue.id}
+          role={issue.danger ? "alert" : "status"}
+          className={cn(
+            "mx-1 max-w-full rounded-lg border px-2.5 py-1.5 text-[11px] leading-5",
+            issue.danger
+              ? "border-danger/20 bg-danger-soft text-danger"
+              : "border-sky-500/15 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+          )}
+        >
+          {issue.text}
+        </p>
+      ))}
     </article>
   );
 }

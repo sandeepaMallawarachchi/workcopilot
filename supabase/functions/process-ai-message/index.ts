@@ -1,6 +1,14 @@
 import { db, env, required, internal, check, secrets } from "../_shared/runtime.ts";
 import { deliver } from "../_shared/deliver.ts";
-import { sendTypingIndicator } from "../../../packages/agent-core/src/services/delivery.ts";
+import {
+  sendTypingIndicator,
+  sendWhatsApp,
+} from "../../../packages/agent-core/src/services/delivery.ts";
+import { failureNotice } from "../../../packages/agent-core/src/services/errors.ts";
+import {
+  normalizePhone,
+  ServiceError,
+} from "../../../packages/agent-core/src/services/policies.ts";
 import { groq } from "../../../packages/agent-core/src/providers/groq.ts";
 import {
   GitHub,
@@ -30,6 +38,9 @@ Deno.serve(async (req) => {
   const deadline = AbortSignal.timeout(110000);
   let status = "retry",
     error: string | null = null;
+  // Who to tell if this request fails for good, and whether a notice makes sense.
+  let recipient: string | null = null;
+  let notify = true;
   try {
     const settings = check(
       await client
@@ -51,13 +62,17 @@ Deno.serve(async (req) => {
     const contact = check(
       await client.from("contacts").select("*").eq("id", conv.contact_id).single(),
     );
-    if (!settings.ai_enabled || !contact.active || !contact.ai_access)
+    recipient = contact.phone;
+    if (!settings.ai_enabled || !contact.active || !contact.ai_access) {
+      notify = false;
       throw new Error("Authorization revoked");
+    }
     if (
       Date.now() - Date.parse(message.whatsapp_sent_at ?? message.created_at) >
       23 * 3600000
     ) {
       status = "dead";
+      notify = false; // WhatsApp no longer allows a free-form reply
       throw new Error("Reply service window expired");
     }
     const outbox = check(
@@ -163,7 +178,14 @@ Deno.serve(async (req) => {
     }
     const sent = await deliver(job.id, job.lease_token);
     status = sent === "pending" ? "retry" : sent === "failed" ? "dead" : sent;
+    if (sent === "failed") {
+      notify = false; // delivery itself is broken; details are in delivery_outbox
+      error = "Reply delivery failed; see delivery error";
+    }
   } catch (e) {
+    // Errors that cannot succeed on retry (e.g. a rejected request) fail now
+    // instead of burning the remaining attempts and delaying the notice.
+    if (e instanceof ServiceError && !e.retryable) status = "dead";
     error = redact(e instanceof Error ? e.message : "Processing failed", secrets()).slice(
       0,
       300,
@@ -182,6 +204,28 @@ Deno.serve(async (req) => {
     return new Response("Lease expired; scheduled recovery will inspect the job", {
       status: 503,
     });
+  }
+  const final =
+    status === "dead" || (status === "retry" && job.attempts >= job.max_attempts);
+  if (final && notify && recipient && error) {
+    // Best effort: tell the sender instead of leaving them waiting in silence.
+    try {
+      await sendWhatsApp(
+        {
+          token: env("WHATSAPP_ACCESS_TOKEN") ?? "",
+          phoneId: env("WHATSAPP_PHONE_NUMBER_ID") ?? "",
+          version: env("WHATSAPP_GRAPH_API_VERSION") ?? "",
+          recipients: (env("WHATSAPP_TEST_RECIPIENTS") ?? "")
+            .split(",")
+            .filter(Boolean)
+            .map(normalizePhone),
+        },
+        recipient,
+        failureNotice(error),
+      );
+    } catch {
+      // Ignore: the dashboard still shows the failure.
+    }
   }
   // Dispatch next job after releasing the global lease; cron still guarantees recovery.
   await client.rpc("kick_worker");

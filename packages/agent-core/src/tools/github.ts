@@ -21,20 +21,16 @@ export class GitHub {
     const get = (path: string) =>
       api("https://api.github.com" + path, this.token, "github", signal, this.fetcher);
     if (name === "list_github_repositories") {
-      const repos = [];
-      for (const repo of this.allowed.slice((a.page - 1) * 20, a.page * 20))
-        repos.push(
-          project(await get("/repos/" + repo), [
-            "full_name",
-            "description",
-            "html_url",
-            "default_branch",
-          ]),
-        );
+      // Names are already known (and verified on save / resolved from the
+      // installation), so answer locally: no per-repository API round trips.
+      const slice = this.allowed.slice((a.page - 1) * 50, a.page * 50);
       return {
-        repositories: repos,
+        repositories: slice.map((full_name) => ({
+          full_name,
+          html_url: `https://github.com/${full_name}`,
+        })),
         page: a.page,
-        has_more: this.allowed.length > a.page * 20,
+        has_more: this.allowed.length > a.page * 50,
       };
     }
     const repo = a.repository;
@@ -196,12 +192,12 @@ const NOISE =
   /(^|\/)(node_modules|\.git|dist|build|out|\.next|coverage|vendor|__pycache__|\.venv|\.turbo|\.cache)(\/|$)/;
 /**
  * Compact, token-efficient directory listing: one path per line, directories
- * end with "/", noise folders skipped, bounded to 300 entries.
+ * end with "/", noise folders skipped, bounded to 200 entries.
  */
 export function formatTree(
   entries: { path: string; dir: boolean }[],
   under?: string,
-  limit = 300,
+  limit = 200,
 ) {
   const prefix = under ? under.replace(/\/+$/, "") + "/" : "";
   const kept = entries

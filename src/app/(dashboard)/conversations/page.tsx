@@ -17,7 +17,9 @@ export default async function Conversations() {
   assertData(result.error);
   const history = await db
     .from("messages")
-    .select("*,agent_jobs(id,status,attempts,tool_executions(tool,outcome,duration_ms))")
+    .select(
+      "*,agent_jobs(id,status,attempts,error,tool_executions(tool,outcome,duration_ms),delivery_outbox(status,error))",
+    )
     .eq("workspace_id", workspace)
     .order("created_at", { ascending: false })
     .limit(200);

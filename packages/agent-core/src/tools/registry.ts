@@ -123,7 +123,21 @@ export class Registry {
   async execute(name: string, raw: string, signal?: AbortSignal) {
     if (!names.includes(name as (typeof names)[number]))
       throw new Error("Tool denied by read-only registry");
-    const a = schema.parse(JSON.parse(raw));
+    // Models often send "" or "/" to mean "not specified"; normalize before the
+    // strict schema so those calls succeed instead of failing validation.
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(parsed)) {
+      if (value === "" || value === null) delete parsed[key];
+    }
+    if (typeof parsed.path === "string") {
+      const path = parsed.path
+        .trim()
+        .replace(/^(\.\/|\/)+/, "")
+        .replace(/\/+$/, "");
+      if (path === "" || path === ".") delete parsed.path;
+      else parsed.path = path;
+    }
+    const a = schema.parse(parsed);
     if (
       name.startsWith("get_") &&
       !name.endsWith("_file") &&
@@ -138,9 +152,11 @@ export class Registry {
     if (!provider) throw new Error("Integration is not connected");
     const result = await provider.run(name, a, signal);
     const output = redact(JSON.stringify(result), this.secrets);
-    return output.length > 12000
-      ? output.slice(0, 12000) +
-          "\n[Tool result truncated at 12,000 characters; narrow the request or paginate.]"
+    // Every tool result is resent on later model calls; keep it within Groq's
+    // per-minute token budget.
+    return output.length > 8000
+      ? output.slice(0, 8000) +
+          "\n[Tool result truncated at 8,000 characters; narrow the request or paginate.]"
       : output;
   }
 }

@@ -434,19 +434,19 @@ describe("privacy and orchestration", () => {
         },
       ],
     });
-    const f = fake(200, { full_name: "o/r" });
+    const onTool = vi.fn(async () => {});
     const result = await runAgent({
       complete,
-      registry: new Registry(new GitHub("t", ["o/r"], f)),
+      registry: new Registry(new GitHub("t", ["o/r"], fake(200, {}))),
       history: [],
       request: "repo list",
       maxTools: 1,
       language: "match",
       maxLength: 2000,
-      onTool: async () => {},
+      onTool,
     });
     expect(result.reply).toContain("limit");
-    expect(f).toHaveBeenCalledTimes(1);
+    expect(onTool).toHaveBeenCalledTimes(1);
   });
   it("applies bounded exponential queue backoff", () => {
     expect([1, 2, 3, 10].map(retryDelay)).toEqual([30, 60, 120, 900]);
@@ -752,5 +752,51 @@ describe("repository structure tool", () => {
         JSON.stringify({ repository: "o/r" }),
       ),
     ).resolves.toContain("entries");
+  });
+});
+
+describe("tool argument normalization", () => {
+  it("treats empty or root paths as the whole repository", async () => {
+    const registry = new Registry(
+      new GitHub(
+        "t",
+        ["o/r"],
+        vi.fn<typeof fetch>().mockImplementation(
+          async () =>
+            new Response(JSON.stringify({ tree: [{ path: "a.ts", type: "blob" }] }), {
+              status: 200,
+            }),
+        ),
+      ),
+    );
+    for (const path of ["", "/", ".", "./"])
+      await expect(
+        registry.execute("get_github_tree", JSON.stringify({ repository: "o/r", path })),
+      ).resolves.toContain("a.ts");
+  });
+  it("lists allowed repositories without API calls", async () => {
+    const f = fake(200, {});
+    const out = (await new GitHub("t", ["o/a", "o/b"], f).run(
+      "list_github_repositories",
+      { page: 1 },
+    )) as { repositories: { html_url: string }[] };
+    expect(out.repositories[1].html_url).toBe("https://github.com/o/b");
+    expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe("user-facing failure messages", () => {
+  it("explains common failures in plain language", async () => {
+    const { describeFailure, failureNotice } =
+      await import("../packages/agent-core/src/services/errors");
+    expect(describeFailure("Groq request failed (429 rate_limit_exceeded)")).toContain(
+      "busy",
+    );
+    expect(
+      describeFailure("Meta rejected message (401): code 190; Authentication Error"),
+    ).toContain("access token");
+    expect(describeFailure("github API 404")).toContain("repository");
+    expect(describeFailure(null)).toContain("Something went wrong");
+    expect(failureNotice("timeout")).toMatch(/^⚠️ Sorry/);
   });
 });

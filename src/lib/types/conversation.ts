@@ -7,7 +7,9 @@ export type ConversationJob = {
   id: string;
   status: string;
   attempts: number;
+  error?: string | null;
   tool_executions: ToolActivity[];
+  delivery_outbox?: { status: string; error: string | null }[] | null;
 };
 export type ConversationMessageData = {
   id: string;
