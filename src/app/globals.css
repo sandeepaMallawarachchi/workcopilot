@@ -63,3 +63,10 @@
     background: #7057e530;
   }
 }
+
+.legal-content a {
+  @apply font-semibold text-accent underline decoration-accent/35 underline-offset-4 transition hover:decoration-accent focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent;
+}
+.legal-content code {
+  @apply rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[0.9em] text-ink;
+}

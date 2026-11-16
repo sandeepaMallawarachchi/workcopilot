@@ -198,6 +198,23 @@ npx vercel --prod
 
 Set Supabase Auth Site URL to that deployment and `NEXT_PUBLIC_APP_URL` to the same origin. Sign in with your provisioned administrator. Confirm that ordinary unauthenticated visits cannot access dashboard data.
 
+### Public website and Meta app details
+
+The public site and policy pages are served from the configured Vercel domain. For `https://workcopilotai.vercel.app`, enter these values in Meta → App settings → Basic after deploying the current frontend:
+
+| Meta field | Value |
+| --- | --- |
+| App domains | `workcopilotai.vercel.app` (hostname only; no protocol or path) |
+| Website / homepage | `https://workcopilotai.vercel.app/` |
+| Privacy policy URL | `https://workcopilotai.vercel.app/privacy` |
+| Terms of Service URL | `https://workcopilotai.vercel.app/terms` |
+| User data deletion | Select “Data deletion instructions URL”; enter `https://workcopilotai.vercel.app/data-deletion` |
+| Contact email | An inbox you monitor, currently `sandeepamallawarachchi444@gmail.com` |
+
+The public website also links to `/support`. Keep the description accurate: this is a single-owner personal assistant today, not an open public chatbot or multi-tenant SaaS. Select the closest truthful app category offered by Meta; do not claim a company, certification, or Data Protection Officer designation that you do not have. Complete any additional fields Meta marks as required in your app. The Vercel domain must serve these routes publicly before using them in Meta.
+
+The deployed app has to be updated from this repository for the URLs to become live. After deployment, open each URL in a signed-out/private browser window and confirm it loads without login before saving the Meta Basic settings.
+
 ## 9. Meta webhook registration and inbound verification
 
 In **WA Personal AI Agent** → WhatsApp → Configuration (labels can vary by Meta console version):
