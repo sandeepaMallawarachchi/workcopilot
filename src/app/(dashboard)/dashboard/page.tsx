@@ -138,7 +138,9 @@ export default async function Dashboard() {
                   </h3>
                   <p className="mt-1 text-[11px] text-muted">
                     {connection.allowed_repositories.includes("*")
-                      ? "All installation repositories"
+                      ? connection.provider === "github"
+                        ? "All installation repositories"
+                        : "All member projects"
                       : `${connection.allowed_repositories.length} authorized repositories`}
                   </p>
                 </div>

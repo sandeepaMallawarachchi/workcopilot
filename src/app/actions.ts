@@ -145,8 +145,9 @@ export async function integration(form: FormData): Promise<FormActionResult> {
     revalidatePath("/integrations");
     return { ok: true, message: "Integration disconnected." };
   }
-  // "*" = every repository the GitHub App installation can access (resolved at run time).
-  const allowAll = provider === "github" && form.get("all") === "on";
+  // "*" = every repository the credential can access (GitHub App installation /
+  // GitLab project membership), resolved at run time.
+  const allowAll = form.get("all") === "on";
   const allowed = allowAll
     ? ["*"]
     : z

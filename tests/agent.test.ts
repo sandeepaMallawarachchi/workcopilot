@@ -15,7 +15,7 @@ import {
   GitHub,
   resolveGitHubRepositories,
 } from "../packages/agent-core/src/tools/github";
-import { GitLab } from "../packages/agent-core/src/tools/gitlab";
+import { GitLab, resolveGitLabProjects } from "../packages/agent-core/src/tools/gitlab";
 import { Registry } from "../packages/agent-core/src/tools/registry";
 import { redact, safePath } from "../packages/agent-core/src/security/sanitization";
 import { contextFor } from "../packages/agent-core/src/services/conversation";
@@ -798,5 +798,35 @@ describe("user-facing failure messages", () => {
     expect(describeFailure("github API 404")).toContain("repository");
     expect(describeFailure(null)).toContain("Something went wrong");
     expect(failureNotice("timeout")).toMatch(/^⚠️ Sorry/);
+  });
+});
+
+describe("GitLab all-projects selection", () => {
+  it("resolves * to member projects", async () => {
+    const f = fake(200, [{ path_with_namespace: "g/a" }, { path_with_namespace: "g/b" }]);
+    expect(await resolveGitLabProjects(["*"], "t", undefined, undefined, f)).toEqual([
+      "g/a",
+      "g/b",
+    ]);
+    expect(String(f.mock.calls[0][0])).toContain("membership=true");
+  });
+  it("keeps explicit selections and refuses non-GitLab.com hosts", async () => {
+    const f = fake(200, []);
+    expect(await resolveGitLabProjects(["g/p"], "t", undefined, undefined, f)).toEqual([
+      "g/p",
+    ]);
+    expect(f).not.toHaveBeenCalled();
+    await expect(
+      resolveGitLabProjects(["*"], "t", "https://evil.example", undefined, f),
+    ).rejects.toThrow("GitLab.com only");
+  });
+  it("lists projects locally", async () => {
+    const f = fake(200, {});
+    const out = (await new GitLab("t", ["g/a"], "https://gitlab.com", f).run(
+      "list_gitlab_projects",
+      { page: 1 },
+    )) as { projects: { web_url: string }[] };
+    expect(out.projects[0].web_url).toBe("https://gitlab.com/g/a");
+    expect(f).not.toHaveBeenCalled();
   });
 });

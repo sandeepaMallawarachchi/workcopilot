@@ -59,16 +59,22 @@ export default async function Integrations() {
               className="p-5 sm:p-6 [&:has(input[name=all]:checked)_textarea]:pointer-events-none [&:has(input[name=all]:checked)_textarea]:opacity-40"
             >
               <input type="hidden" name="provider" value={connection.provider} />
-              {connection.provider === "github" && (
-                <div className="mb-5">
-                  <Switch
-                    name="all"
-                    label="Allow all repositories"
-                    description="Read any repository the GitHub App installation can access, including ones you add to it later. The list below is ignored while this is on."
-                    defaultChecked={connection.allowed_repositories.includes("*")}
-                  />
-                </div>
-              )}
+              <div className="mb-5">
+                <Switch
+                  name="all"
+                  label={
+                    connection.provider === "github"
+                      ? "Allow all repositories"
+                      : "Allow all projects"
+                  }
+                  description={
+                    connection.provider === "github"
+                      ? "Read any repository the GitHub App installation can access, including ones you add to it later. The list below is ignored while this is on."
+                      : "Read any GitLab project the token's account is a member of, including ones you join later. The list below is ignored while this is on."
+                  }
+                  defaultChecked={connection.allowed_repositories.includes("*")}
+                />
+              </div>
               <Field
                 label={`Authorized ${connection.provider === "github" ? "repositories" : "projects"}`}
                 hint="One full path per line, up to 50. Leave empty to permit no repository reads. Each path is verified with the provider."

@@ -14,7 +14,10 @@ import {
   GitHub,
   resolveGitHubRepositories,
 } from "../../../packages/agent-core/src/tools/github.ts";
-import { GitLab } from "../../../packages/agent-core/src/tools/gitlab.ts";
+import {
+  GitLab,
+  resolveGitLabProjects,
+} from "../../../packages/agent-core/src/tools/gitlab.ts";
 import { Registry } from "../../../packages/agent-core/src/tools/registry.ts";
 import { runAgent } from "../../../packages/agent-core/src/services/agent.ts";
 import {
@@ -117,8 +120,13 @@ Deno.serve(async (req) => {
         gl
           ? new GitLab(
               required("GITLAB_TOKEN"),
-              gl.allowed_repositories,
-              env("GITLAB_BASE_URL"),
+              await resolveGitLabProjects(
+                gl.allowed_repositories,
+                required("GITLAB_TOKEN"),
+                env("GITLAB_BASE_URL") || undefined,
+                deadline,
+              ),
+              env("GITLAB_BASE_URL") || undefined,
             )
           : undefined,
         known,

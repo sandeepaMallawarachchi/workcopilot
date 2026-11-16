@@ -25,21 +25,15 @@ export class GitLab {
         this.fetcher,
       );
     if (name === "list_gitlab_projects") {
-      const projects = [];
-      for (const id of this.allowed.slice((a.page - 1) * 20, a.page * 20))
-        projects.push(
-          project(await get("/projects/" + encodeURIComponent(id)), [
-            "id",
-            "path_with_namespace",
-            "web_url",
-            "default_branch",
-            "description",
-          ]),
-        );
+      // Paths are already known (verified on save / resolved from membership):
+      // answer locally instead of one API call per project.
+      const base = this.base.replace(/\/$/, "");
       return {
-        projects,
+        projects: this.allowed
+          .slice((a.page - 1) * 50, a.page * 50)
+          .map((path) => ({ path_with_namespace: path, web_url: `${base}/${path}` })),
         page: a.page,
-        has_more: this.allowed.length > a.page * 20,
+        has_more: this.allowed.length > a.page * 50,
       };
     }
     const id = a.project;
@@ -120,4 +114,36 @@ export class GitLab {
       per_page: 20,
     };
   }
+}
+
+/**
+ * Resolves the "*" (all projects) selection to the project paths the token's
+ * user is a member of on GitLab.com. Bounded to 300.
+ */
+export async function resolveGitLabProjects(
+  allowed: string[],
+  token: string,
+  base = "https://gitlab.com",
+  signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<string[]> {
+  if (!allowed.includes("*")) return allowed;
+  if (new URL(base).origin !== "https://gitlab.com")
+    throw new ServiceError("Phase 1 permits GitLab.com only");
+  const paths = new Set(allowed.filter((p) => p !== "*"));
+  for (let page = 1; page <= 3; page++) {
+    const projects = array(
+      await api(
+        `https://gitlab.com/api/v4/projects?membership=true&simple=true&archived=false&per_page=100&page=${page}`,
+        token,
+        "gitlab",
+        signal,
+        fetcher,
+      ),
+    );
+    for (const p of projects)
+      if (typeof p.path_with_namespace === "string") paths.add(p.path_with_namespace);
+    if (projects.length < 100) break;
+  }
+  return [...paths];
 }
