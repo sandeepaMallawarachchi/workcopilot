@@ -5,6 +5,13 @@ import type { ConversationMessageData } from "@/lib/types/conversation";
 
 export function ConversationMessage({ message }: { message: ConversationMessageData }) {
   const assistant = message.role === "assistant";
+  // messages -> agent_jobs is a one-to-one relationship (message_id is unique).
+  // PostgREST may therefore return the related row as an object instead of an array.
+  const jobs = Array.isArray(message.agent_jobs)
+    ? message.agent_jobs
+    : message.agent_jobs
+      ? [message.agent_jobs]
+      : [];
   const sources = (message.sources ?? []).filter((source) =>
     /^https:\/\/(github\.com|gitlab\.com)\//.test(source),
   );
@@ -57,7 +64,7 @@ export function ConversationMessage({ message }: { message: ConversationMessageD
           </ul>
         </div>
       )}
-      {message.agent_jobs?.map((job) => (
+      {jobs.map((job) => (
         <div key={job.id} className="mt-4 border-t border-border/70 pt-3">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={job.status} />

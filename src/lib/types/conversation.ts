@@ -15,5 +15,5 @@ export type ConversationMessageData = {
   content: string;
   created_at: string;
   sources: string[];
-  agent_jobs: ConversationJob[];
+  agent_jobs: ConversationJob[] | ConversationJob | null;
 };
