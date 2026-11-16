@@ -31,6 +31,29 @@ async function errorCode(res: Response): Promise<string | undefined> {
     return undefined;
   }
 }
+const maxRateLimitWaits = 3;
+const maxWaitMs = 30000;
+function retryAfterMs(res: Response): number | undefined {
+  const header = res.headers.get("retry-after");
+  if (header === null) return 2000;
+  const seconds = Number(header);
+  return Number.isFinite(seconds) && seconds >= 0
+    ? Math.ceil(seconds * 1000) + 250
+    : undefined;
+}
+function sleep(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+}
 export function groq(
   apiKey: string,
   model: string,
@@ -60,14 +83,30 @@ export function groq(
         ? AbortSignal.any([signal, AbortSignal.timeout(25000)])
         : AbortSignal.timeout(25000),
     });
-  return async (messages, tools, signal) => {
+  // Rate limits (tokens per minute) usually clear within seconds. Waiting here is
+  // far faster than failing the job and waiting for the queue's retry backoff.
+  const send = async (
+    messages: Parameters<Complete>[0],
+    tools: Parameters<Complete>[1],
+    signal?: AbortSignal,
+  ) => {
     let res = await request(messages, tools, signal);
+    for (let i = 0; i < maxRateLimitWaits && res.status === 429; i++) {
+      const wait = retryAfterMs(res);
+      if (wait === undefined || wait > maxWaitMs || signal?.aborted) break;
+      await sleep(wait, signal);
+      res = await request(messages, tools, signal);
+    }
+    return res;
+  };
+  return async (messages, tools, signal) => {
+    let res = await send(messages, tools, signal);
     let code = res.ok ? undefined : await errorCode(res);
     if (code === "tool_use_failed") {
       // Some models (e.g. gpt-oss) emit calls to tools that were never offered,
       // such as built-in "repo_browser.*". Retry once with an explicit reminder.
       const names = tools.map((t) => t.function.name);
-      res = await request(
+      res = await send(
         [
           ...messages,
           {

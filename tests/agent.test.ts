@@ -16,7 +16,10 @@ import { GitLab } from "../packages/agent-core/src/tools/gitlab";
 import { Registry } from "../packages/agent-core/src/tools/registry";
 import { redact, safePath } from "../packages/agent-core/src/security/sanitization";
 import { contextFor } from "../packages/agent-core/src/services/conversation";
-import { sendWhatsApp } from "../packages/agent-core/src/services/delivery";
+import {
+  sendTypingIndicator,
+  sendWhatsApp,
+} from "../packages/agent-core/src/services/delivery";
 import { runAgent } from "../packages/agent-core/src/services/agent";
 import { splitReply } from "../packages/agent-core/src/services/response";
 const secret = "test-app-secret";
@@ -632,6 +635,71 @@ describe("provider history serialization", () => {
     expect(complete.mock.calls[0][0][1]).toEqual({
       role: "assistant",
       content: "Earlier response",
+    });
+  });
+});
+
+describe("latency and token efficiency", () => {
+  it("keeps tool schemas compact and tool-specific", () => {
+    const registry = new Registry(new GitHub("t", ["o/r"]), new GitLab("t", ["g/p"]));
+    const defs = registry.definitions();
+    expect(
+      JSON.stringify(new Registry(new GitHub("t", ["o/r"])).definitions()).length,
+    ).toBeLessThan(3000);
+    const file = defs.find((d) => d.function.name === "get_github_file")!;
+    expect(file.function.parameters).toMatchObject({
+      required: ["repository", "path"],
+    });
+    const list = defs.find((d) => d.function.name === "list_github_repositories")!;
+    expect(Object.keys(list.function.parameters.properties as object)).toEqual(["page"]);
+    expect(registry.scope()).toContain("GitHub repository: o/r");
+  });
+  it("trims long history messages", () => {
+    const out = contextFor(
+      [
+        {
+          role: "assistant",
+          content: "x".repeat(5000),
+          conversation_id: "c",
+          created_at: "2026-11-16",
+        },
+      ],
+      "c",
+      "2026-01-01",
+    );
+    expect(out[0].content.length).toBeLessThan(1300);
+  });
+  it("waits out short Groq rate limits instead of failing", async () => {
+    vi.useFakeTimers();
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response("{}", { status: 429, headers: { "retry-after": "1" } }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+          status: 200,
+        }),
+      );
+    const pending = groq("k", "m", f)([], []);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect((await pending).content).toBe("ok");
+    expect(f).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+  it("sends a WhatsApp typing indicator for the incoming message", async () => {
+    const f = fake(200, { success: true });
+    expect(
+      await sendTypingIndicator(
+        { token: "t", phoneId: "p", version: "v24.0" },
+        "wamid.in",
+        f,
+      ),
+    ).toBe(true);
+    expect(JSON.parse(String(f.mock.calls[0][1]?.body))).toMatchObject({
+      status: "read",
+      message_id: "wamid.in",
+      typing_indicator: { type: "text" },
     });
   });
 });

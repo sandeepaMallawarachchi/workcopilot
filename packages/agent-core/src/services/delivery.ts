@@ -8,9 +8,12 @@ const META_HINTS: Record<number, string> = {
   10: "token lacks whatsapp_business_messaging permission or app is not linked to this WhatsApp account",
   200: "token lacks whatsapp_business_messaging permission",
   100: "invalid parameter; WHATSAPP_PHONE_NUMBER_ID is likely wrong (use the Phone number ID, not the phone number or WABA ID)",
-  131030: "recipient is not in the Meta test number's allowed list; add it under WhatsApp > API Setup > To",
-  131047: "more than 24 hours since the user's last message; a template message is required",
-  131026: "message undeliverable; recipient may not have WhatsApp or must accept new terms",
+  131030:
+    "recipient is not in the Meta test number's allowed list; add it under WhatsApp > API Setup > To",
+  131047:
+    "more than 24 hours since the user's last message; a template message is required",
+  131026:
+    "message undeliverable; recipient may not have WhatsApp or must accept new terms",
   133010: "phone number is not registered with the Cloud API",
   368: "account temporarily blocked for policy violations",
 };
@@ -113,8 +116,43 @@ export async function sendWhatsApp(
   } catch {
     return {
       status: "manual_review",
-      error:
-        "Network timeout or malformed response; delivery outcome uncertain",
+      error: "Network timeout or malformed response; delivery outcome uncertain",
     };
+  }
+}
+
+/**
+ * Marks the incoming message as read and shows WhatsApp's "typing…" indicator.
+ * Meta clears it when a reply is sent or after ~25 seconds. Best effort only:
+ * failures never affect processing.
+ */
+export async function sendTypingIndicator(
+  config: { token: string; phoneId: string; version: string },
+  incomingMessageId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<boolean> {
+  if (!config.token || !config.phoneId || !/^v\d+\.\d+$/.test(config.version))
+    return false;
+  try {
+    const res = await fetcher(
+      `https://graph.facebook.com/${config.version}/${config.phoneId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          status: "read",
+          message_id: incomingMessageId,
+          typing_indicator: { type: "text" },
+        }),
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    return res.ok;
+  } catch {
+    return false;
   }
 }

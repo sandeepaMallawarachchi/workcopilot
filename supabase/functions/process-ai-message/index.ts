@@ -1,12 +1,6 @@
-import {
-  db,
-  env,
-  required,
-  internal,
-  check,
-  secrets,
-} from "../_shared/runtime.ts";
+import { db, env, required, internal, check, secrets } from "../_shared/runtime.ts";
 import { deliver } from "../_shared/deliver.ts";
+import { sendTypingIndicator } from "../../../packages/agent-core/src/services/delivery.ts";
 import { groq } from "../../../packages/agent-core/src/providers/groq.ts";
 import { GitHub } from "../../../packages/agent-core/src/tools/github.ts";
 import { GitLab } from "../../../packages/agent-core/src/tools/gitlab.ts";
@@ -21,8 +15,7 @@ import { redact } from "../../../packages/agent-core/src/security/sanitization.t
 import { githubToken } from "../../../packages/agent-core/src/services/credentials.ts";
 Deno.serve(async (req) => {
   if (!internal(req)) return new Response("Unauthorized", { status: 401 });
-  if (req.method !== "POST")
-    return new Response("Method not allowed", { status: 405 });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const client = db();
   let job;
   try {
@@ -43,11 +36,7 @@ Deno.serve(async (req) => {
         .single(),
     );
     const message = check(
-      await client
-        .from("messages")
-        .select("*")
-        .eq("id", job.message_id)
-        .single(),
+      await client.from("messages").select("*").eq("id", job.message_id).single(),
     );
     const conv = check(
       await client
@@ -57,11 +46,7 @@ Deno.serve(async (req) => {
         .single(),
     );
     const contact = check(
-      await client
-        .from("contacts")
-        .select("*")
-        .eq("id", conv.contact_id)
-        .single(),
+      await client.from("contacts").select("*").eq("id", conv.contact_id).single(),
     );
     if (!settings.ai_enabled || !contact.active || !contact.ai_access)
       throw new Error("Authorization revoked");
@@ -73,13 +58,25 @@ Deno.serve(async (req) => {
       throw new Error("Reply service window expired");
     }
     const outbox = check(
-      await client
-        .from("delivery_outbox")
-        .select("id")
-        .eq("job_id", job.id)
-        .limit(1),
+      await client.from("delivery_outbox").select("id").eq("job_id", job.id).limit(1),
     );
     if (!outbox?.length) {
+      // Show "typing…" in WhatsApp while the agent works; refreshed on tool
+      // activity because Meta clears it after ~25 seconds.
+      let lastTyping = 0;
+      const typing = () => {
+        if (!message.whatsapp_message_id || Date.now() - lastTyping < 20000) return;
+        lastTyping = Date.now();
+        void sendTypingIndicator(
+          {
+            token: env("WHATSAPP_ACCESS_TOKEN") ?? "",
+            phoneId: env("WHATSAPP_PHONE_NUMBER_ID") ?? "",
+            version: env("WHATSAPP_GRAPH_API_VERSION") ?? "",
+          },
+          message.whatsapp_message_id,
+        );
+      };
+      typing();
       const integrations =
         check(
           await client
@@ -138,6 +135,7 @@ Deno.serve(async (req) => {
         signal: deadline,
         secrets: known,
         async onTool(e) {
+          typing();
           check(
             await client
               .from("tool_executions")
@@ -158,10 +156,10 @@ Deno.serve(async (req) => {
     const sent = await deliver(job.id, job.lease_token);
     status = sent === "pending" ? "retry" : sent === "failed" ? "dead" : sent;
   } catch (e) {
-    error = redact(
-      e instanceof Error ? e.message : "Processing failed",
-      secrets(),
-    ).slice(0, 300);
+    error = redact(e instanceof Error ? e.message : "Processing failed", secrets()).slice(
+      0,
+      300,
+    );
   }
   try {
     check(
@@ -173,10 +171,9 @@ Deno.serve(async (req) => {
       }),
     );
   } catch {
-    return new Response(
-      "Lease expired; scheduled recovery will inspect the job",
-      { status: 503 },
-    );
+    return new Response("Lease expired; scheduled recovery will inspect the job", {
+      status: 503,
+    });
   }
   // Dispatch next job after releasing the global lease; cron still guarantees recovery.
   await client.rpc("kick_worker");

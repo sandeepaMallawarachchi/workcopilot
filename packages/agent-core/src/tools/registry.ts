@@ -57,16 +57,56 @@ export class Registry {
     private secrets: string[] = [],
   ) {}
   definitions(): ToolDefinition[] {
+    // Compact per-tool schemas: only the parameters each tool uses. Every call
+    // resends these, so size directly affects Groq tokens-per-minute limits.
+    // Full validation still happens in execute() with the strict zod schema.
     return names
       .filter((n) => (n.includes("_github_") ? !!this.github : !!this.gitlab))
-      .map((name) => ({
-        type: "function",
-        function: {
-          name,
-          description: `Read only: ${name.replaceAll("_", " ")}. Repository/project must be an exact identifier from list. Search is bounded; use page to continue.`,
-          parameters: z.toJSONSchema(schema),
-        },
-      }));
+      .map((name) => {
+        const target = name.includes("_github_") ? "repository" : "project";
+        const props: Record<string, Record<string, string>> = {};
+        const required: string[] = [];
+        const add = (key: string, type: string, need = false) => {
+          props[key] = { type };
+          if (need) required.push(key);
+        };
+        if (!name.startsWith("list_") || !name.endsWith("_projects")) {
+          if (name !== "list_github_repositories") add(target, "string", true);
+        }
+        if (name.endsWith("_file")) add("path", "string", true);
+        if (name.startsWith("search_")) add("query", "string", true);
+        if (
+          name.endsWith("_file") ||
+          name.endsWith("_commits") ||
+          name.endsWith("_status")
+        )
+          add("ref", "string");
+        if (name.endsWith("_commit")) add("sha", "string");
+        if (/get_\w+_(issue|pull_request|merge_request)$/.test(name))
+          add("number", "integer", true);
+        if (name.startsWith("list_") || name.startsWith("search_"))
+          add("page", "integer");
+        return {
+          type: "function" as const,
+          function: {
+            name,
+            description: `Read only: ${name.replaceAll("_", " ")}.`,
+            parameters: {
+              type: "object",
+              properties: props,
+              required,
+              additionalProperties: false,
+            },
+          },
+        };
+      });
+  }
+  /** Allowed repositories/projects, so the model can skip a listing call. */
+  scope(): string {
+    return [
+      ...(this.github?.allowed ?? []).map((r) => `GitHub repository: ${r}`),
+      ...(this.gitlab?.allowed ?? []).map((p) => `GitLab project: ${p}`),
+    ].join("\n");
   }
   async execute(name: string, raw: string, signal?: AbortSignal) {
     if (!names.includes(name as (typeof names)[number]))
@@ -80,8 +120,7 @@ export class Registry {
       !a.number
     )
       throw new Error("Issue or request number required");
-    if (name.includes("search_") && !a.query)
-      throw new Error("Search query required");
+    if (name.includes("search_") && !a.query) throw new Error("Search query required");
     const provider = name.includes("_github_") ? this.github : this.gitlab;
     if (!provider) throw new Error("Integration is not connected");
     const result = await provider.run(name, a, signal);
