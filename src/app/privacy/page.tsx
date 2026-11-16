@@ -12,7 +12,7 @@ export default function PrivacyPolicy() {
       <p>This policy explains how WorkCopilot handles information when the personal WhatsApp AI assistant is used. WorkCopilot is currently configured as a single-owner tool operated by Sandeepa Mallawarachchi, not as a public multi-user service. Questions or privacy requests can be sent to <a href="mailto:sandeepamallawarachchi444@gmail.com">sandeepamallawarachchi444@gmail.com</a>.</p>
 
       <LegalSection title="Information handled">
-        <p>WorkCopilot is designed to store only requests that pass the configured contact allowlist and begin with the activation prefix (currently <code>@ai</code>). Ordinary messages and messages from unknown or disabled contacts are ignored and are not added to conversation history.</p>
+        <p>WorkCopilot is designed to store only requests that pass the configured contact allowlist and either begin with the activation prefix (currently <code>@ai</code>) or arrive as a follow-up within the configured follow-up window after a prefixed request (default 10 minutes; the administrator can set it to 0 to always require the prefix). Other messages and messages from unknown or disabled contacts are ignored and are not added to conversation history.</p>
         <LegalList items={[
           "The authorized sender’s WhatsApp phone number and contact settings, such as display name, permission, and preferred language.",
           "Activated request text, the assistant’s reply, timestamps, delivery identifiers, processing status, and relevant source links.",

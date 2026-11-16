@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function DataDeletion() {
   return (
     <LegalPage title="User Data Deletion">
-      <p>WorkCopilot stores only messages that are explicitly activated by an authorized contact. Ordinary WhatsApp conversations are not intentionally stored as agent history.</p>
+      <p>WorkCopilot stores only messages that are explicitly activated by an authorized contact, plus follow-ups sent within the configured follow-up window after an activated message. Ordinary WhatsApp conversations are not intentionally stored as agent history.</p>
 
       <LegalSection title="Request deletion">
         <ol className="list-decimal space-y-2 pl-5 marker:font-semibold marker:text-accent">

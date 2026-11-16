@@ -10,6 +10,12 @@ begin
  result:=public.accept_message('test.blocked','+94770000002','@ai hello',now());if result<>'unauthorized' then raise exception 'Blocked contact accepted';end if;
  result:=public.accept_message('test.ordinary','+94770000001','hello',now());if result<>'not_activated' then raise exception 'Ordinary message accepted';end if;
  result:=public.accept_message('test.active','+94770000001','  @AI මේ repo එක බලන්න',now());if result<>'accepted' then raise exception 'Activated message rejected: %',result;end if;
+ result:=public.accept_message('test.followup','+94770000001','thanks, and the README?',now());if result<>'accepted' then raise exception 'Follow-up within window rejected: %',result;end if;
+ update public.agent_settings set followup_minutes=0 where workspace_id=w;
+ result:=public.accept_message('test.nofollowup','+94770000001','another one',now());if result<>'not_activated' then raise exception 'Follow-up accepted while disabled';end if;
+ update public.agent_settings set followup_minutes=10 where workspace_id=w;
+ update public.conversations set reset_at=now()+interval '1 second' where contact_id=(select id from public.contacts where phone='+94770000001');
+ result:=public.accept_message('test.afterreset','+94770000001','after reset',now());if result<>'not_activated' then raise exception 'Follow-up survived history reset';end if;
  select count(*) into before_count from public.agent_jobs;
  result:=public.accept_message('test.active','+94770000001','@ai duplicate',now());if result<>'duplicate' then raise exception 'Deduplication failed';end if;
  if (select count(*) from public.agent_jobs)<>before_count then raise exception 'Duplicate job created';end if;

@@ -35,7 +35,7 @@ export default async function Settings() {
       min: 0,
       max: 20,
       value: settings.context_messages,
-      hint: "Only explicitly activated messages are used.",
+      hint: "Only activated messages and their follow-ups are used.",
     },
     {
       name: "context_hours",
@@ -76,7 +76,7 @@ export default async function Settings() {
               />
               <Field
                 label="Activation prefix"
-                hint="Case-insensitive, at the start of a message. Prefix activation is always required."
+                hint="Case-insensitive, at the start of a message. Starts a conversation with the agent."
               >
                 <Input
                   name="activation_prefix"
@@ -84,6 +84,19 @@ export default async function Settings() {
                   defaultValue={settings.activation_prefix}
                   pattern="@[a-zA-Z]{1,12}"
                   maxLength={13}
+                />
+              </Field>
+              <Field
+                label="Follow-up window (minutes)"
+                hint="After a prefixed message, replies continue without the prefix until this many minutes pass with no messages. 0 always requires the prefix. Allowed range: 0–60."
+              >
+                <Input
+                  name="followup_minutes"
+                  type="number"
+                  required
+                  min={0}
+                  max={60}
+                  defaultValue={settings.followup_minutes ?? 10}
                 />
               </Field>
               <Field label="Language behavior">

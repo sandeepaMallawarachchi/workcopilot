@@ -26,7 +26,7 @@ export default async function Conversations() {
       <PageTitle
         eyebrow="ACTIVATED MESSAGES ONLY"
         title="Conversations with context."
-        description="Requests, replies, and the evidence behind them. Ordinary messages stay private."
+        description="Requests, replies, and the evidence behind them. Messages outside an @ai conversation stay private."
       >
         <RefreshButton />
       </PageTitle>

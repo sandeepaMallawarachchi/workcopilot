@@ -30,7 +30,7 @@ export default function TermsOfService() {
       </LegalSection>
 
       <LegalSection title="Privacy and retention">
-        <p>Use of personal information is described in the <a href="/privacy">Privacy Policy</a>. Only explicitly activated messages are intended to be stored. The administrator controls the contact allowlist and retention setting. Deletion instructions are available at <a href="/data-deletion">/data-deletion</a>.</p>
+        <p>Use of personal information is described in the <a href="/privacy">Privacy Policy</a>. Only activated messages, and follow-ups sent within the configured follow-up window after an activated message, are intended to be stored. The administrator controls the contact allowlist and retention setting. Deletion instructions are available at <a href="/data-deletion">/data-deletion</a>.</p>
       </LegalSection>
 
       <LegalSection title="Availability and changes">

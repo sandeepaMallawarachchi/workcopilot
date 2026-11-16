@@ -92,6 +92,7 @@ export async function saveSettings(form: FormData) {
   const value = z
     .object({
       activation_prefix: z.string().regex(/^@[a-zA-Z]{1,12}$/),
+      followup_minutes: z.coerce.number().int().min(0).max(60),
       groq_model: z.string().trim().max(100),
       max_tool_calls: z.coerce.number().int().min(1).max(10),
       language_behavior: z.enum(["match", "English", "Sinhala", "Singlish"]),

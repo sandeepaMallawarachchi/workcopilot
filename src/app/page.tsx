@@ -41,7 +41,7 @@ export default function Home() {
           <div className="mt-12 flex flex-wrap gap-x-6 gap-y-3 text-xs text-muted">
             <span className="inline-flex items-center gap-2"><ShieldCheck size={15} className="text-accent" /> Explicitly authorized contacts</span>
             <span className="inline-flex items-center gap-2"><Github size={15} /> Read-only repository tools</span>
-            <span className="inline-flex items-center gap-2"><MessageCircle size={15} /> Only messages starting with @ai</span>
+            <span className="inline-flex items-center gap-2"><MessageCircle size={15} /> Start with @ai, follow up naturally</span>
           </div>
         </div>
         <div className="relative z-10 rounded-3xl border border-border bg-surface/90 p-6 shadow-xl shadow-indigo-950/5 sm:p-9">
@@ -49,7 +49,7 @@ export default function Home() {
           <ol className="mt-7 space-y-6">
             {[
               ["01", "You choose who can use it", "Unknown, disabled, and non-activated messages are ignored."],
-              ["02", "Ask with @ai", "Only an explicitly activated request is saved for processing and conversation context."],
+              ["02", "Ask with @ai", "Start with @ai; follow-ups within a short window continue the conversation. Nothing else is saved."],
               ["03", "Get a grounded reply", "When needed, the assistant reads only the repositories you allow and cites sources."],
             ].map(([number, title, body]) => (
               <li key={number} className="flex gap-4">
