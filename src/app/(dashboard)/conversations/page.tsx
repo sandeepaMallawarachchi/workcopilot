@@ -3,6 +3,7 @@ import { clearHistory } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms/action-form";
 import { ConversationMessage } from "@/components/conversations/message";
 import { RefreshButton } from "@/components/conversations/refresh-button";
+import { ChatScroll } from "@/components/conversations/chat-scroll";
 import { PageTitle, Panel, Empty, assertData } from "@/components/ui";
 
 export default async function Conversations() {
@@ -43,18 +44,16 @@ export default async function Conversations() {
             key={conversation.id}
             title={`${conversation.contacts?.display_name ?? "Contact"} · ${conversation.contacts?.phone ?? ""}`}
           >
-            <div
-              role="region"
-              aria-label={`Messages with ${conversation.contacts?.display_name ?? "contact"}`}
-              tabIndex={0}
-              className="flex max-h-[65vh] flex-col-reverse gap-3 overflow-y-auto p-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-6"
+            <ChatScroll
+              label={`Messages with ${conversation.contacts?.display_name ?? "contact"}`}
             >
               {history.data
                 ?.filter((message) => message.conversation_id === conversation.id)
+                .reverse()
                 .map((message) => (
                   <ConversationMessage key={message.id} message={message} />
                 ))}
-            </div>
+            </ChatScroll>
             <div className="border-t border-border bg-canvas/40 px-4 py-3 sm:px-6">
               <ActionForm
                 action={clearHistory}

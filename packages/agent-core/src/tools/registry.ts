@@ -7,6 +7,7 @@ const names = [
   "list_github_repositories",
   "search_github_code",
   "get_github_file",
+  "get_github_tree",
   "list_github_commits",
   "get_github_commit",
   "list_github_issues",
@@ -16,6 +17,7 @@ const names = [
   "list_gitlab_projects",
   "search_gitlab_repository",
   "get_gitlab_file",
+  "get_gitlab_tree",
   "list_gitlab_commits",
   "get_gitlab_commit",
   "list_gitlab_issues",
@@ -74,9 +76,11 @@ export class Registry {
           if (name !== "list_github_repositories") add(target, "string", true);
         }
         if (name.endsWith("_file")) add("path", "string", true);
+        if (name.endsWith("_tree")) add("path", "string");
         if (name.startsWith("search_")) add("query", "string", true);
         if (
           name.endsWith("_file") ||
+          name.endsWith("_tree") ||
           name.endsWith("_commits") ||
           name.endsWith("_status")
         )
@@ -90,7 +94,9 @@ export class Registry {
           type: "function" as const,
           function: {
             name,
-            description: `Read only: ${name.replaceAll("_", " ")}.`,
+            description: name.endsWith("_tree")
+              ? "Read only: folder structure / file listing of a repository (optionally under path). Use this for structure questions instead of searching."
+              : `Read only: ${name.replaceAll("_", " ")}.`,
             parameters: {
               type: "object",
               properties: props,
@@ -121,6 +127,7 @@ export class Registry {
     if (
       name.startsWith("get_") &&
       !name.endsWith("_file") &&
+      !name.endsWith("_tree") &&
       !name.endsWith("_status") &&
       !name.endsWith("_commit") &&
       !a.number

@@ -60,6 +60,23 @@ export class GitHub {
         truncated: Number(r.size) > 6000,
       };
     }
+    if (name === "get_github_tree") {
+      // One call answers "folder structure" questions instead of many searches.
+      const tree = record(await get(`${base}/git/trees/${ref}?recursive=1`));
+      return {
+        repository: repo,
+        ref: a.ref ?? "HEAD",
+        ...formatTree(
+          array(tree.tree).map((x) => ({
+            path: String(x.path),
+            dir: x.type === "tree",
+          })),
+          a.path,
+        ),
+        source: `https://github.com/${repo}/tree/${a.ref ?? "HEAD"}${a.path ? "/" + a.path : ""}`,
+        truncated_by_github: tree.truncated === true,
+      };
+    }
     if (name === "search_github_code") {
       // Bounded tree/content search works with GitHub App installation tokens, unlike code search.
       if (!a.query) throw new ServiceError("Search query required");
@@ -173,4 +190,27 @@ export async function resolveGitHubRepositories(
     await collect("/user/repos?affiliation=owner,collaborator,organization_member");
   }
   return [...names];
+}
+
+const NOISE =
+  /(^|\/)(node_modules|\.git|dist|build|out|\.next|coverage|vendor|__pycache__|\.venv|\.turbo|\.cache)(\/|$)/;
+/**
+ * Compact, token-efficient directory listing: one path per line, directories
+ * end with "/", noise folders skipped, bounded to 300 entries.
+ */
+export function formatTree(
+  entries: { path: string; dir: boolean }[],
+  under?: string,
+  limit = 300,
+) {
+  const prefix = under ? under.replace(/\/+$/, "") + "/" : "";
+  const kept = entries
+    .filter((e) => e.path.startsWith(prefix) && !NOISE.test(e.path))
+    .map((e) => e.path + (e.dir ? "/" : ""))
+    .sort();
+  return {
+    entries: kept.slice(0, limit).join("\n"),
+    total: kept.length,
+    truncated: kept.length > limit,
+  };
 }

@@ -722,3 +722,35 @@ describe("all-repositories selection", () => {
     expect(f).not.toHaveBeenCalled();
   });
 });
+
+describe("repository structure tool", () => {
+  it("returns a compact tree without noise folders in one call", async () => {
+    const f = fake(200, {
+      tree: [
+        { path: "src", type: "tree" },
+        { path: "src/index.ts", type: "blob" },
+        { path: "node_modules/x/index.js", type: "blob" },
+        { path: "README.md", type: "blob" },
+      ],
+    });
+    const out = (await new GitHub("t", ["o/r"], f).run("get_github_tree", {
+      repository: "o/r",
+      page: 1,
+    })) as { entries: string; total: number };
+    expect(out.entries).toBe("README.md\nsrc/\nsrc/index.ts");
+    expect(out.total).toBe(3);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+  it("exposes the tree tool with an optional path", async () => {
+    const def = new Registry(new GitHub("t", ["o/r"]))
+      .definitions()
+      .find((d) => d.function.name === "get_github_tree")!;
+    expect(def.function.parameters).toMatchObject({ required: ["repository"] });
+    await expect(
+      new Registry(new GitHub("t", ["o/r"], fake(200, { tree: [] }))).execute(
+        "get_github_tree",
+        JSON.stringify({ repository: "o/r" }),
+      ),
+    ).resolves.toContain("entries");
+  });
+});

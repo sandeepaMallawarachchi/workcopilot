@@ -1,3 +1,4 @@
+import { formatTree } from "./github.ts";
 import { api, project, record, decodeBase64, array } from "./http.ts";
 import type { ToolArgs } from "./github.ts";
 import { safePath } from "../security/sanitization.ts";
@@ -54,13 +55,30 @@ export class GitLab {
           `${base}/repository/files/${encodeURIComponent(a.path)}?ref=${encodeURIComponent(a.ref ?? "HEAD")}`,
         ),
       );
-      if (Number(f.size) > 32000)
-        throw new ServiceError("File exceeds safe size");
+      if (Number(f.size) > 32000) throw new ServiceError("File exceeds safe size");
       return {
         path: f.file_path,
         excerpt: decodeBase64(String(f.content)).slice(0, 6000),
         source: `${this.base}/${id}/-/blob/${encodeURIComponent(a.ref ?? "HEAD")}/${a.path.split("/").map(encodeURIComponent).join("/")}`,
         truncated: Number(f.size) > 6000,
+      };
+    }
+    if (name === "get_gitlab_tree") {
+      const entries: { path: string; dir: boolean }[] = [];
+      for (let page = 1; page <= 3; page++) {
+        const items = array(
+          await get(
+            `${base}/repository/tree?recursive=true&per_page=100&page=${page}${a.ref ? `&ref=${encodeURIComponent(a.ref)}` : ""}${a.path ? `&path=${encodeURIComponent(a.path)}` : ""}`,
+          ),
+        );
+        for (const x of items)
+          entries.push({ path: String(x.path), dir: x.type === "tree" });
+        if (items.length < 100) break;
+      }
+      return {
+        project: id,
+        ...formatTree(entries, a.path),
+        source: `${this.base}/${id}/-/tree/${encodeURIComponent(a.ref ?? "HEAD")}${a.path ? "/" + a.path : ""}`,
       };
     }
     const routes: Record<string, string> = {
@@ -77,9 +95,7 @@ export class GitLab {
     const result = await get(base + routes[name]);
     const filtered =
       name === "search_gitlab_repository"
-        ? array(result).filter((x) =>
-            safePath(String(x.path ?? x.filename ?? "")),
-          )
+        ? array(result).filter((x) => safePath(String(x.path ?? x.filename ?? "")))
         : result;
     return {
       data: project(filtered, [

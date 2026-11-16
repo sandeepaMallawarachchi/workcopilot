@@ -65,10 +65,15 @@ const components: Components = {
   img: ({ alt }) => <span className="text-muted">[image: {alt}]</span>,
 };
 
+// Models often wrap a whole document (e.g. a README) in a ```markdown fence;
+// render it as Markdown rather than as a code block.
+const unwrapMarkdownFences = (text: string) =>
+  text.replace(/```(?:markdown|md)[ \t]*\n([\s\S]*?)\n```/gi, "$1");
+
 export function Markdown({ children }: { children: string }) {
   return (
     <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>
-      {children}
+      {unwrapMarkdownFences(children)}
     </ReactMarkdown>
   );
 }
