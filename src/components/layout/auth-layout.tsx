@@ -17,9 +17,9 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         <Link
           href="/"
           aria-label="WorkCopilot home"
-          className="block w-64 max-w-full rounded-2xl bg-white p-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300 sm:w-72"
+          className="block w-64 max-w-full rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300 sm:w-72"
         >
-          <BrandLogo />
+          <BrandLogo variant="dark" />
         </Link>
         <div className="max-w-lg">
           <p className="mb-5 text-[10px] font-semibold tracking-[0.2em] text-cyan-200">

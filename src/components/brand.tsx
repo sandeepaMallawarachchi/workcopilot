@@ -1,20 +1,34 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-/** CSS framing preserves the supplied artwork while removing transparent margins. */
-export function BrandLogo() {
+/**
+ * Transparent, tightly cropped wordmark (1900×410). "auto" follows the theme:
+ * dark text on light backgrounds, light text on dark ones. Use "dark" on
+ * surfaces that are always dark regardless of theme.
+ */
+export function BrandLogo({ variant = "auto" }: { variant?: "auto" | "dark" }) {
+  const alt = "WorkCopilot — Beyond Answers. Into Action.";
+  const common = { width: 1900, height: 410, priority: true, unoptimized: true } as const;
+  if (variant === "dark")
+    return (
+      <Image src="/brand/logo-dark.png" alt={alt} {...common} className="h-auto w-full" />
+    );
   return (
-    <span className="relative block aspect-1900/410 w-full overflow-hidden">
+    <>
       <Image
-        src="/brand/logo.png"
-        alt="WorkCopilot — Beyond Answers. Into Action."
-        width={2172}
-        height={724}
-        className="absolute -top-[37.8%] -left-[7.37%] h-auto w-[114.32%] max-w-none"
-        priority
-        unoptimized
+        src="/brand/logo-light.png"
+        alt={alt}
+        {...common}
+        className="h-auto w-full dark:hidden"
       />
-    </span>
+      <Image
+        src="/brand/logo-dark.png"
+        alt=""
+        aria-hidden="true"
+        {...common}
+        className="hidden h-auto w-full dark:block"
+      />
+    </>
   );
 }
 export function BrandMark({ className }: { className?: string }) {

@@ -55,7 +55,7 @@ export default function Shell({
         <Link
           href="/dashboard"
           aria-label="WorkCopilot overview"
-          className="block w-48 rounded-xl border border-slate-200 bg-white p-2.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent lg:w-full"
+          className="block w-44 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent lg:w-full"
         >
           <BrandLogo />
         </Link>
