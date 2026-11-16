@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/auth";
 import { clearHistory } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms/action-form";
 import { ConversationMessage } from "@/components/conversations/message";
+import { RefreshButton } from "@/components/conversations/refresh-button";
 import { PageTitle, Panel, Empty, assertData } from "@/components/ui";
 
 export default async function Conversations() {
@@ -26,7 +27,9 @@ export default async function Conversations() {
         eyebrow="ACTIVATED MESSAGES ONLY"
         title="Conversations with context."
         description="Requests, replies, and the evidence behind them. Ordinary messages stay private."
-      />
+      >
+        <RefreshButton />
+      </PageTitle>
       {!result.data?.length ? (
         <Panel title="Conversation history">
           <Empty
@@ -44,16 +47,15 @@ export default async function Conversations() {
               role="region"
               aria-label={`Messages with ${conversation.contacts?.display_name ?? "contact"}`}
               tabIndex={0}
-              className="flex max-h-180 flex-col gap-5 overflow-y-auto p-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:p-6"
+              className="flex max-h-[65vh] flex-col-reverse gap-3 overflow-y-auto p-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-6"
             >
               {history.data
                 ?.filter((message) => message.conversation_id === conversation.id)
-                .reverse()
                 .map((message) => (
                   <ConversationMessage key={message.id} message={message} />
                 ))}
             </div>
-            <div className="border-t border-border bg-canvas/40 p-5 sm:px-6">
+            <div className="border-t border-border bg-canvas/40 px-4 py-3 sm:px-6">
               <ActionForm
                 action={clearHistory}
                 successMessage="Conversation history deleted and memory reset."

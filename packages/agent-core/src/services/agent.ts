@@ -46,13 +46,21 @@ export async function runAgent(options: {
       o.request,
     );
   const sources = new Set<string>();
+  // Without any connected integration the model has no way to gather evidence,
+  // and some models hallucinate built-in tools instead. Answer directly.
+  if (externalRequest && o.registry.definitions().length === 0)
+    return {
+      reply:
+        "No repository integration is connected yet, so I can't look this up. Connect GitHub or GitLab in the WorkCopilot dashboard (Integrations) and add the repositories I'm allowed to read, then ask again.",
+      sources: [] as string[],
+    };
   for (let round = 0; round <= o.maxTools; round++) {
     const definitions = o.registry.definitions();
     // Byte-level BPE cannot require more tokens than UTF-8 input bytes.
     // Include serialized schemas/messages and reserve framing + completion space.
     const upperBound =
-      new TextEncoder().encode(JSON.stringify({ messages, tools: definitions }))
-        .length + 2560;
+      new TextEncoder().encode(JSON.stringify({ messages, tools: definitions })).length +
+      2560;
     if (upperBound > (o.inputTokenBudget ?? 48000))
       return {
         reply:
@@ -68,8 +76,7 @@ export async function runAgent(options: {
           sources: [] as string[],
         };
       const reply = redact(
-        result.content ??
-          "I could not complete the request. Please clarify the project.",
+        result.content ?? "I could not complete the request. Please clarify the project.",
         secrets,
       ).slice(0, o.maxLength);
       return { reply, sources: [...sources] };
@@ -96,21 +103,19 @@ export async function runAgent(options: {
           o.signal,
         );
         successes++;
-        for (const url of output.match(/https:\/\/[^\s"\\<>]+/g) ?? [])
-          sources.add(url);
+        for (const url of output.match(/https:\/\/[^\s"\\<>]+/g) ?? []) sources.add(url);
       } catch (e) {
         outcome = "error";
-        output = redact(
-          e instanceof Error ? e.message : "Tool failed",
-          secrets,
-        ).slice(0, 250);
+        output = redact(e instanceof Error ? e.message : "Tool failed", secrets).slice(
+          0,
+          250,
+        );
       }
       await o.onTool({
         tool: call.function.name,
         outcome,
         duration_ms: Date.now() - started,
-        summary:
-          outcome === "success" ? "Read-only API call succeeded" : output,
+        summary: outcome === "success" ? "Read-only API call succeeded" : output,
       });
       messages.push({ role: "tool", tool_call_id: call.id, content: output });
     }

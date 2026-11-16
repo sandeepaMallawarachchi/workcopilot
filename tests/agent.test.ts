@@ -14,10 +14,7 @@ import { groq } from "../packages/agent-core/src/providers/groq";
 import { GitHub } from "../packages/agent-core/src/tools/github";
 import { GitLab } from "../packages/agent-core/src/tools/gitlab";
 import { Registry } from "../packages/agent-core/src/tools/registry";
-import {
-  redact,
-  safePath,
-} from "../packages/agent-core/src/security/sanitization";
+import { redact, safePath } from "../packages/agent-core/src/security/sanitization";
 import { contextFor } from "../packages/agent-core/src/services/conversation";
 import { sendWhatsApp } from "../packages/agent-core/src/services/delivery";
 import { runAgent } from "../packages/agent-core/src/services/agent";
@@ -31,16 +28,10 @@ async function signature(body: string) {
     false,
     ["sign"],
   );
-  const signed = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(body),
-  );
+  const signed = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body));
   return (
     "sha256=" +
-    Array.from(new Uint8Array(signed), (x) =>
-      x.toString(16).padStart(2, "0"),
-    ).join("")
+    Array.from(new Uint8Array(signed), (x) => x.toString(16).padStart(2, "0")).join("")
   );
 }
 function payload(type = "text") {
@@ -107,15 +98,11 @@ describe("Meta webhook", () => {
     ).toBe(403));
   it("validates signed raw payloads", async () => {
     const body = payload();
-    expect(await verifySignature(body, await signature(body), secret)).toBe(
-      true,
-    );
+    expect(await verifySignature(body, await signature(body), secret)).toBe(true);
   });
   it("rejects modified payloads and malformed signatures", async () => {
     const body = payload();
-    expect(
-      await verifySignature(body + " ", await signature(body), secret),
-    ).toBe(false);
+    expect(await verifySignature(body + " ", await signature(body), secret)).toBe(false);
     expect(await verifySignature(body, "sha256=bad", secret)).toBe(false);
   });
   it("accepts eligible text and preserves mixed language", async () => {
@@ -208,9 +195,7 @@ describe("authorization and activation", () => {
     expect(authorized(null, true, "@ai hello")).toBeNull());
   it("ignores blocked contacts", () => {
     expect(authorized({ ...c, active: false }, true, "@ai hello")).toBeNull();
-    expect(
-      authorized({ ...c, ai_access: false }, true, "@ai hello"),
-    ).toBeNull();
+    expect(authorized({ ...c, ai_access: false }, true, "@ai hello")).toBeNull();
   });
   it("ignores ordinary messages and embedded activation", () => {
     expect(authorized(c, true, "Hello machan")).toBeNull();
@@ -225,9 +210,7 @@ describe("authorization and activation", () => {
     expect(activation("@ai මේ project එකේ error එක මොකක්ද?")).toBe(
       "මේ project එකේ error එක මොකක්ද?",
     );
-    expect(activation("@ai machan email config eka")).toBe(
-      "machan email config eka",
-    );
+    expect(activation("@ai machan email config eka")).toBe("machan email config eka");
   });
   it("global disable overrides allowed contacts", () =>
     expect(authorized(c, false, "@ai hello")).toBeNull());
@@ -255,12 +238,8 @@ describe("real API adapters with mocked networks", () => {
       ],
     });
     const response = await groq("key", "configured-model", f)([], []);
-    expect(response.tool_calls?.[0].function.name).toBe(
-      "list_github_repositories",
-    );
-    expect(JSON.parse(String(f.mock.calls[0][1]?.body)).model).toBe(
-      "configured-model",
-    );
+    expect(response.tool_calls?.[0].function.name).toBe("list_github_repositories");
+    expect(JSON.parse(String(f.mock.calls[0][1]?.body)).model).toBe("configured-model");
   });
   it("rejects malformed Groq calls", async () => {
     await expect(
@@ -268,9 +247,7 @@ describe("real API adapters with mocked networks", () => {
         "k",
         "m",
         fake(200, {
-          choices: [
-            { message: { tool_calls: [{ function: { arguments: {} } }] } },
-          ],
+          choices: [{ message: { tool_calls: [{ function: { arguments: {} } }] } }],
         }),
       )([], []),
     ).rejects.toThrow("Invalid Groq");
@@ -345,10 +322,7 @@ describe("real API adapters with mocked networks", () => {
       ),
     ).rejects.toThrow();
     await expect(
-      registry.execute(
-        "list_github_repositories",
-        '{"url":"https://attacker.test"}',
-      ),
+      registry.execute("list_github_repositories", '{"url":"https://attacker.test"}'),
     ).rejects.toThrow();
   });
 });
@@ -357,13 +331,7 @@ describe("privacy and orchestration", () => {
     const s =
       "BREVO_API_KEY=some-value\npassword: hunter2\nghp_12345678901234567890\n-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\nknown-secret";
     const safe = redact(s, ["known-secret"]);
-    for (const value of [
-      "some-value",
-      "hunter2",
-      "ghp_",
-      "abc",
-      "known-secret",
-    ])
+    for (const value of ["some-value", "hunter2", "ghp_", "abc", "known-secret"])
       expect(safe).not.toContain(value);
     expect(safePath(".env.local")).toBe(false);
     expect(safePath("config/key.pem")).toBe(false);
@@ -389,9 +357,7 @@ describe("privacy and orchestration", () => {
         created_at: "2020-01-01",
       },
     ];
-    expect(contextFor(list, "one", "2026-01-01").map((m) => m.content)).toEqual(
-      ["mine"],
-    );
+    expect(contextFor(list, "one", "2026-01-01").map((m) => m.content)).toEqual(["mine"]);
     expect(contextFor(list, "one", "2026-01-01", 0)).toEqual([]);
   });
   it("never passes secrets from tools to the model, while preserving evidence", async () => {
@@ -434,9 +400,7 @@ describe("privacy and orchestration", () => {
       (m: { role: string }) => m.role === "tool",
     );
     expect(tool.content).not.toContain("super-secret");
-    expect(onTool).toHaveBeenCalledWith(
-      expect.objectContaining({ outcome: "success" }),
-    );
+    expect(onTool).toHaveBeenCalledWith(expect.objectContaining({ outcome: "success" }));
   });
   it("refuses requests to expose credentials without a model call", async () => {
     const complete = vi.fn();
@@ -496,9 +460,9 @@ describe("outgoing delivery safety", () => {
   };
   it("rejects unverified test recipients before making a request", async () => {
     const f = fake(200);
-    expect(
-      (await sendWhatsApp(config, "+19999999999", "hello", f)).status,
-    ).toBe("failed");
+    expect((await sendWhatsApp(config, "+19999999999", "hello", f)).status).toBe(
+      "failed",
+    );
     expect(f).not.toHaveBeenCalled();
   });
   it("records outgoing IDs", async () =>
@@ -512,14 +476,13 @@ describe("outgoing delivery safety", () => {
     ).toMatchObject({ status: "sent", id: "wamid.out" }));
   it("does not blindly retry network timeouts", async () => {
     const f = vi.fn<typeof fetch>().mockRejectedValue(new Error("timeout"));
-    expect(
-      (await sendWhatsApp(config, config.recipients[0], "hello", f)).status,
-    ).toBe("manual_review");
+    expect((await sendWhatsApp(config, config.recipients[0], "hello", f)).status).toBe(
+      "manual_review",
+    );
   });
   it("retries only explicit rate-limit rejections", async () =>
     expect(
-      (await sendWhatsApp(config, config.recipients[0], "hello", fake(429)))
-        .status,
+      (await sendWhatsApp(config, config.recipients[0], "hello", fake(429))).status,
     ).toBe("pending"));
   it("surfaces Meta's error code and hint without leaking the token", async () => {
     const result = await sendWhatsApp(
@@ -550,12 +513,10 @@ describe("outgoing delivery safety", () => {
   });
   it("permanent failures and ambiguous server errors are distinct", async () => {
     expect(
-      (await sendWhatsApp(config, config.recipients[0], "hello", fake(400)))
-        .status,
+      (await sendWhatsApp(config, config.recipients[0], "hello", fake(400))).status,
     ).toBe("failed");
     expect(
-      (await sendWhatsApp(config, config.recipients[0], "hello", fake(500)))
-        .status,
+      (await sendWhatsApp(config, config.recipients[0], "hello", fake(500))).status,
     ).toBe("manual_review");
   });
 });
@@ -575,8 +536,44 @@ describe("additional grounding and data boundaries", () => {
       maxLength: 2000,
       onTool: async () => {},
     });
-    expect(result.reply).toContain("not verified");
+    expect(result.reply).toContain("No repository integration is connected");
     expect(result.reply).not.toContain("fixed auth");
+    expect(complete).not.toHaveBeenCalled();
+    const connected = await runAgent({
+      complete,
+      registry: new Registry(new GitHub("t", ["o/r"], fake(200, []))),
+      history: [],
+      request: "What is my latest commit?",
+      maxTools: 3,
+      language: "match",
+      maxLength: 2000,
+      onTool: async () => {},
+    });
+    expect(connected.reply).toContain("not verified");
+    expect(connected.reply).not.toContain("fixed auth");
+  });
+  it("recovers once from Groq tool_use_failed hallucinated tools", async () => {
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: { code: "tool_use_failed", message: "Tool choice is none" },
+          }),
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ choices: [{ message: { content: "Hello" } }] }), {
+          status: 200,
+        }),
+      );
+    const response = await groq("k", "m", f)([], []);
+    expect(response.content).toBe("Hello");
+    expect(f).toHaveBeenCalledTimes(2);
+    await expect(
+      groq("k", "m", fake(400, { error: { code: "tool_use_failed" } }))([], []),
+    ).rejects.toThrow("Groq request failed (400 tool_use_failed)");
   });
   it("bounds the complete prompt and tool schemas before making a model request", async () => {
     const complete = vi.fn();
