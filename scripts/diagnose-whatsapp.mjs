@@ -111,6 +111,46 @@ report.edgeEndpoints = results
           error: "Endpoint unreachable",
         },
   );
+// Read-only Meta check: verifies the token can read the configured phone number ID.
+async function metaCheck() {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
+  const version = process.env.WHATSAPP_GRAPH_API_VERSION?.trim();
+  if (!token || !phoneId || !version) return { skipped: "token, phone ID or version missing" };
+  try {
+    const response = await timedFetch(
+      `https://graph.facebook.com/${version}/${phoneId}?fields=display_phone_number,verified_name,quality_rating`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const body = await response.json().catch(() => ({}));
+    if (response.ok)
+      return {
+        ok: true,
+        displayNumberLastFour: String(body.display_phone_number ?? "").replace(/\D/g, "").slice(-4),
+        verifiedName: body.verified_name,
+        qualityRating: body.quality_rating,
+      };
+    return {
+      ok: false,
+      status: response.status,
+      code: body.error?.code,
+      subcode: body.error?.error_subcode,
+      message: String(body.error?.message ?? "").split(token).join("[redacted]"),
+    };
+  } catch {
+    return { ok: false, error: "Network failure reaching graph.facebook.com" };
+  }
+}
+report.metaPhoneNumberCheck = await metaCheck();
+const failedDeliveries = await db
+  .from("delivery_outbox")
+  .select("status,error,updated_at")
+  .neq("status", "sent")
+  .order("updated_at", { ascending: false })
+  .limit(3);
+report.recentDeliveryFailures = failedDeliveries.data ?? {
+  errorCode: failedDeliveries.error?.code || "request_failed",
+};
 console.log(JSON.stringify(report, null, 2));
 
 const queryFailure = [settings, contacts, messages, jobs, integrations].some(

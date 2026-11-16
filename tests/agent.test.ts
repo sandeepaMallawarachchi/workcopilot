@@ -521,6 +521,33 @@ describe("outgoing delivery safety", () => {
       (await sendWhatsApp(config, config.recipients[0], "hello", fake(429)))
         .status,
     ).toBe("pending"));
+  it("surfaces Meta's error code and hint without leaking the token", async () => {
+    const result = await sendWhatsApp(
+      config,
+      config.recipients[0],
+      "hello",
+      fake(400, {
+        error: {
+          message: "Recipient phone number not in allowed list",
+          code: 131030,
+          fbtrace_id: "abc",
+        },
+      }),
+    );
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("code 131030");
+    expect(result.error).toContain("allowed list");
+    const leaked = await sendWhatsApp(
+      { ...config, token: "EAAsecretsecretsecretsecret123" },
+      config.recipients[0],
+      "hello",
+      fake(401, {
+        error: { message: "bad token EAAsecretsecretsecretsecret123", code: 190 },
+      }),
+    );
+    expect(leaked.error).not.toContain("EAAsecret");
+    expect(leaked.error).toContain("expired");
+  });
   it("permanent failures and ambiguous server errors are distinct", async () => {
     expect(
       (await sendWhatsApp(config, config.recipients[0], "hello", fake(400)))

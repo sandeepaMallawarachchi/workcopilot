@@ -38,7 +38,7 @@ if (missing.length) {
     await writeFile(
       ".env.edge",
       "# Server-only Edge secrets. Never commit this file.\n" + lines.join("\n") + "\n",
-      { flag: "wx", mode: 0o600 },
+      { flag: process.argv.includes("--force") ? "w" : "wx", mode: 0o600 },
     );
     console.log(
       `Created ignored .env.edge with ${lines.length} settings. No secret values were printed.`,
@@ -46,7 +46,7 @@ if (missing.length) {
   } catch (error) {
     if (error.code === "EEXIST") {
       console.log(
-        "Existing .env.edge was left unchanged. Check it locally before uploading; it may differ from .env.",
+        "Existing .env.edge was left unchanged; it may differ from .env. Run `npm run secrets:prepare -- --force` to regenerate it.",
       );
     } else {
       console.error("Could not create .env.edge. Check local file permissions.");
