@@ -105,7 +105,6 @@ WHATSAPP_ACCESS_TOKEN
 WHATSAPP_PHONE_NUMBER_ID
 WHATSAPP_BUSINESS_ACCOUNT_ID
 WHATSAPP_GRAPH_API_VERSION
-WHATSAPP_TEST_RECIPIENTS
 GROQ_API_KEY
 GROQ_MODEL
 GITHUB_APP_ID
@@ -118,7 +117,7 @@ GITLAB_BASE_URL
 INTERNAL_JOB_SECRET
 ```
 
-Choose an unpredictable verification token. Generate an internal secret with at least 32 characters, for example `openssl rand -hex 32`, and store it directly in your secret manager. `WHATSAPP_TEST_RECIPIENTS` is a comma-separated list of international numbers, each actually verified under Meta's test-number recipient setup. The database allowlist alone does not grant test-number sending permission.
+Choose an unpredictable verification token. Generate an internal secret with at least 32 characters, for example `openssl rand -hex 32`, and store it directly in your secret manager. Who may use the assistant is controlled only by the dashboard Contacts list. While using Meta's test number, each contact must also be added and verified under Meta's API Setup "To" list (Meta's own restriction; a real business number removes it).
 
 Set `WHATSAPP_PHONE_NUMBER_ID` to the **test phone number ID**, not its visible phone number and not your existing business number. Set the WABA ID belonging to that test number. Set `WHATSAPP_GRAPH_API_VERSION` to the active Graph API version shown in your Meta dashboard, in `vNN.0` format. It is intentionally not hardcoded. Temporary Meta dashboard access tokens expire; replace them with an appropriate supported token for sustained testing.
 
@@ -224,7 +223,7 @@ In **WA Personal AI Agent** → WhatsApp → Configuration (labels can vary by M
 3. Subscribe to the **messages** webhook field for `whatsapp_business_account`.
 4. Confirm the app is subscribed to the test WABA. Inspect the WABA `subscribed_apps` endpoint with appropriate permissions; if the console has not subscribed it, use Meta's documented subscription setup. Do not change an unrelated production WABA.
 5. In WhatsApp API Setup/API Testing, select the existing Meta test number. Add and verify your personal recipient there.
-6. In WorkCopilot Contacts, add that same international number, enable Active and AI access. Also add it to `WHATSAPP_TEST_RECIPIENTS` in Edge secrets.
+6. In WorkCopilot Contacts, add that same international number, enable Active and AI access. While on Meta's test number, also add and verify it under API Setup "To".
 7. Verify the repository/project connection and allowlist in Integrations.
 8. In Settings, confirm the tool-calling Groq model, then enable AI.
 9. From the authorized personal WhatsApp account, send the Meta test number an actual message: `@ai machan owner/repository repo eke latest commit eka check karanna`.

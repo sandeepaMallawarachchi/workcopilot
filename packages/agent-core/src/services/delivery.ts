@@ -58,17 +58,15 @@ export async function sendWhatsApp(
     token: string;
     phoneId: string;
     version: string;
-    recipients: string[];
   },
   recipient: string,
   text: string,
   fetcher: typeof fetch = fetch,
 ): Promise<DeliveryResult> {
-  if (!config.recipients.includes(recipient))
-    return {
-      status: "failed",
-      error: "Recipient is not a permitted Meta test recipient",
-    };
+  // Who may receive replies is decided by the Contacts allowlist (save_reply only
+  // queues messages for active contacts with AI access); this is a format check.
+  if (!/^\+[1-9]\d{7,14}$/.test(recipient))
+    return { status: "failed", error: "Invalid recipient phone number" };
   if (!config.token || !config.phoneId || !/^v\d+\.\d+$/.test(config.version))
     return { status: "failed", error: "WhatsApp configuration incomplete" };
   try {

@@ -23,7 +23,6 @@ const report = {
       "WHATSAPP_PHONE_NUMBER_ID",
       "WHATSAPP_BUSINESS_ACCOUNT_ID",
       "WHATSAPP_GRAPH_API_VERSION",
-      "WHATSAPP_TEST_RECIPIENTS",
       "GROQ_API_KEY",
       "GROQ_MODEL",
       "INTERNAL_JOB_SECRET",
@@ -73,22 +72,11 @@ const settings = result(0),
   jobs = result(3),
   integrations = result(4);
 report.settings = settings.data ?? settings;
-const normalize = (number) => "+" + number.replace(/\D/g, "");
-const recipients = (process.env.WHATSAPP_TEST_RECIPIENTS ?? "")
-  .split(",")
-  .filter((number) => number.trim())
-  .map(normalize);
 report.contacts = contacts.data
   ? {
       total: contacts.data.length,
       authorized: contacts.data.filter((contact) => contact.active && contact.ai_access)
         .length,
-      permittedRecipientsInContactAllowlist: recipients.map((number) => ({
-        lastFour: number.slice(-4),
-        authorized: contacts.data.some(
-          (contact) => contact.phone === number && contact.active && contact.ai_access,
-        ),
-      })),
     }
   : contacts;
 report.storedMessageCount = messages.count ?? messages;
@@ -99,24 +87,21 @@ report.integrations =
     status: connection.status,
     allowedRepositoryCount: connection.allowed_repositories.length,
   })) ?? integrations;
-report.edgeEndpoints = results
-  .slice(5)
-  .map((entry, index) =>
-    entry.status === "fulfilled"
-      ? entry.value
-      : {
-          name: ["whatsapp-webhook", "process-ai-message", "send-whatsapp-message"][
-            index
-          ],
-          error: "Endpoint unreachable",
-        },
-  );
+report.edgeEndpoints = results.slice(5).map((entry, index) =>
+  entry.status === "fulfilled"
+    ? entry.value
+    : {
+        name: ["whatsapp-webhook", "process-ai-message", "send-whatsapp-message"][index],
+        error: "Endpoint unreachable",
+      },
+);
 // Read-only Meta check: verifies the token can read the configured phone number ID.
 async function metaCheck() {
   const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
   const version = process.env.WHATSAPP_GRAPH_API_VERSION?.trim();
-  if (!token || !phoneId || !version) return { skipped: "token, phone ID or version missing" };
+  if (!token || !phoneId || !version)
+    return { skipped: "token, phone ID or version missing" };
   try {
     const response = await timedFetch(
       `https://graph.facebook.com/${version}/${phoneId}?fields=display_phone_number,verified_name,quality_rating`,
@@ -126,7 +111,9 @@ async function metaCheck() {
     if (response.ok)
       return {
         ok: true,
-        displayNumberLastFour: String(body.display_phone_number ?? "").replace(/\D/g, "").slice(-4),
+        displayNumberLastFour: String(body.display_phone_number ?? "")
+          .replace(/\D/g, "")
+          .slice(-4),
         verifiedName: body.verified_name,
         qualityRating: body.quality_rating,
       };
@@ -135,7 +122,9 @@ async function metaCheck() {
       status: response.status,
       code: body.error?.code,
       subcode: body.error?.error_subcode,
-      message: String(body.error?.message ?? "").split(token).join("[redacted]"),
+      message: String(body.error?.message ?? "")
+        .split(token)
+        .join("[redacted]"),
     };
   } catch {
     return { ok: false, error: "Network failure reaching graph.facebook.com" };

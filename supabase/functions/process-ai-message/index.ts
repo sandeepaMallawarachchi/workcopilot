@@ -5,10 +5,7 @@ import {
   sendWhatsApp,
 } from "../../../packages/agent-core/src/services/delivery.ts";
 import { failureNotice } from "../../../packages/agent-core/src/services/errors.ts";
-import {
-  normalizePhone,
-  ServiceError,
-} from "../../../packages/agent-core/src/services/policies.ts";
+import { ServiceError } from "../../../packages/agent-core/src/services/policies.ts";
 import { groq } from "../../../packages/agent-core/src/providers/groq.ts";
 import {
   GitHub,
@@ -386,10 +383,6 @@ Deno.serve(async (req) => {
           token: env("WHATSAPP_ACCESS_TOKEN") ?? "",
           phoneId: env("WHATSAPP_PHONE_NUMBER_ID") ?? "",
           version: env("WHATSAPP_GRAPH_API_VERSION") ?? "",
-          recipients: (env("WHATSAPP_TEST_RECIPIENTS") ?? "")
-            .split(",")
-            .filter(Boolean)
-            .map(normalizePhone),
         },
         recipient,
         failureNotice(error),

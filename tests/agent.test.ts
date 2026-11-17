@@ -462,38 +462,36 @@ describe("outgoing delivery safety", () => {
     token: "t",
     phoneId: "test",
     version: "v24.0",
-    recipients: ["+94771234567"],
   };
-  it("rejects unverified test recipients before making a request", async () => {
+  const recipient = "+94771234567";
+  it("rejects malformed recipients before making a request", async () => {
     const f = fake(200);
-    expect((await sendWhatsApp(config, "+19999999999", "hello", f)).status).toBe(
-      "failed",
-    );
+    expect((await sendWhatsApp(config, "12345", "hello", f)).status).toBe("failed");
     expect(f).not.toHaveBeenCalled();
   });
   it("records outgoing IDs", async () =>
     expect(
       await sendWhatsApp(
         config,
-        config.recipients[0],
+        recipient,
         "hello",
         fake(200, { messages: [{ id: "wamid.out" }] }),
       ),
     ).toMatchObject({ status: "sent", id: "wamid.out" }));
   it("does not blindly retry network timeouts", async () => {
     const f = vi.fn<typeof fetch>().mockRejectedValue(new Error("timeout"));
-    expect((await sendWhatsApp(config, config.recipients[0], "hello", f)).status).toBe(
+    expect((await sendWhatsApp(config, recipient, "hello", f)).status).toBe(
       "manual_review",
     );
   });
   it("retries only explicit rate-limit rejections", async () =>
-    expect(
-      (await sendWhatsApp(config, config.recipients[0], "hello", fake(429))).status,
-    ).toBe("pending"));
+    expect((await sendWhatsApp(config, recipient, "hello", fake(429))).status).toBe(
+      "pending",
+    ));
   it("surfaces Meta's error code and hint without leaking the token", async () => {
     const result = await sendWhatsApp(
       config,
-      config.recipients[0],
+      recipient,
       "hello",
       fake(400, {
         error: {
@@ -508,7 +506,7 @@ describe("outgoing delivery safety", () => {
     expect(result.error).toContain("allowed list");
     const leaked = await sendWhatsApp(
       { ...config, token: "EAAsecretsecretsecretsecret123" },
-      config.recipients[0],
+      recipient,
       "hello",
       fake(401, {
         error: { message: "bad token EAAsecretsecretsecretsecret123", code: 190 },
@@ -518,12 +516,12 @@ describe("outgoing delivery safety", () => {
     expect(leaked.error).toContain("expired");
   });
   it("permanent failures and ambiguous server errors are distinct", async () => {
-    expect(
-      (await sendWhatsApp(config, config.recipients[0], "hello", fake(400))).status,
-    ).toBe("failed");
-    expect(
-      (await sendWhatsApp(config, config.recipients[0], "hello", fake(500))).status,
-    ).toBe("manual_review");
+    expect((await sendWhatsApp(config, recipient, "hello", fake(400))).status).toBe(
+      "failed",
+    );
+    expect((await sendWhatsApp(config, recipient, "hello", fake(500))).status).toBe(
+      "manual_review",
+    );
   });
 });
 
