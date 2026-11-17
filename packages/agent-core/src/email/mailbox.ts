@@ -178,6 +178,8 @@ export async function findVerification(
 ) {
   const cutoff = Date.now() - withinMinutes * 60000;
   const unreachable: string[] = [];
+  /** Domains of recent sign-in emails from senders that are not approved. */
+  const unapproved = new Set<string>();
   const candidates: {
     mailbox: string;
     from: string;
@@ -195,8 +197,16 @@ export async function findVerification(
         ).slice(-20);
         for (const s of await summaries(client, uids)) {
           const receivedAt = Date.parse(s.date);
-          if (!(receivedAt >= cutoff) || !senderApproved(s.from, approvedSenders))
+          if (!(receivedAt >= cutoff)) continue;
+          if (!senderApproved(s.from, approvedSenders)) {
+            // Tell the owner which sender to approve (never the code itself).
+            if (looksLikeVerificationHeaders(s.subject, s.from)) {
+              const address = (/<([^>]+)>/.exec(s.from)?.[1] ?? s.from).toLowerCase();
+              const domain = address.split("@")[1]?.split(".").slice(-2).join(".");
+              if (domain) unapproved.add(domain);
+            }
             continue;
+          }
           const [m] = await client.uidFetch([s.uid], "UID BODY.PEEK[]<0.200000>");
           if (!m?.literal) continue;
           const mail = await parse(m.literal);
@@ -234,6 +244,7 @@ export async function findVerification(
     match: pool.sort((a, b) => b.receivedAt - a.receivedAt)[0] ?? null,
     /** Mailboxes that could not be checked (sign-in or network failure). */
     unreachable,
+    unapproved: [...unapproved],
   };
 }
 

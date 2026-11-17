@@ -195,16 +195,19 @@ describe("verification codes (no AI)", () => {
       "github otp",
     );
     expect(github.match?.code).toBe("482913");
-    expect(
-      (await findVerification(fakeServer(), [box], ["other.com"], "otp")).match,
-    ).toBeNull();
+    const notApproved = await findVerification(fakeServer(), [box], ["other.com"], "otp");
+    expect(notApproved.match).toBeNull();
+    // Names the senders to approve, without exposing any code.
+    expect(notApproved.unapproved).toEqual(
+      expect.arrayContaining(["anthropic.com", "github.com"]),
+    );
     const broken = await findVerification(
       fakeServer(),
       [{ ...box, password: "wrong" }],
       ["anthropic.com"],
       "otp",
     );
-    expect(broken).toEqual({ match: null, unreachable: ["Work"] });
+    expect(broken).toEqual({ match: null, unreachable: ["Work"], unapproved: [] });
   });
   it("keeps the code out of the stored history text", () => {
     const m = verificationMessages({
