@@ -116,7 +116,11 @@ export async function updateContactAccess(form: FormData): Promise<FormActionRes
   checked(
     await service()
       .from("contacts")
-      .update({ allowed_tasks: allowed, updated_at: new Date().toISOString() })
+      .update({
+        allowed_tasks: allowed,
+        can_view_secrets: form.get("can_view_secrets") === "on",
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", id)
       .eq("workspace_id", workspace),
   );

@@ -172,7 +172,7 @@ export default async function EmailSettings() {
           <ActionForm
             action={saveEmailRules}
             successMessage="Email rules saved."
-            className="space-y-6 p-5 sm:p-6"
+            className="flex flex-col gap-6 p-5 sm:p-6"
           >
             <Field
               label="Blocked senders"
@@ -228,7 +228,9 @@ export default async function EmailSettings() {
               </p>
             </div>
 
-            <SubmitButton pendingLabel="Saving…">Save rules</SubmitButton>
+            <SubmitButton pendingLabel="Saving…" className="self-start">
+              Save rules
+            </SubmitButton>
           </ActionForm>
         </Panel>
       </div>

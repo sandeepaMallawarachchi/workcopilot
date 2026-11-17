@@ -190,7 +190,7 @@ export default async function IntegrationSettings({
           <ActionForm
             action={saveIntegrationAccess}
             successMessage="Agent access rules saved."
-            className="space-y-6 p-5 sm:p-6"
+            className="flex flex-col gap-6 p-5 sm:p-6"
           >
             <input type="hidden" name="provider" value={provider} />
             <fieldset>
@@ -245,7 +245,9 @@ export default async function IntegrationSettings({
               />
             </div>
 
-            <SubmitButton pendingLabel="Saving…">Save access rules</SubmitButton>
+            <SubmitButton pendingLabel="Saving…" className="self-start">
+              Save access rules
+            </SubmitButton>
           </ActionForm>
         </Panel>
       </div>

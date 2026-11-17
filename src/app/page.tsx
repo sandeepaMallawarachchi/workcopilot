@@ -108,12 +108,20 @@ export default function Home() {
 
       <footer className="border-t border-border bg-surface/60">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <div className="space-y-1">
-            <span>
-              © {new Date().getFullYear()} WorkCopilot · A personal assistant, read-only
-              by design.
+          {/* One row: the tagline is hidden on phones so it fits on one line. */}
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] sm:text-xs">
+            <span className="whitespace-nowrap">
+              © {new Date().getFullYear()}
+              <span className="hidden sm:inline"> WorkCopilot</span>
             </span>
-            <Credit />
+            <span aria-hidden="true">·</span>
+            <span className="hidden whitespace-nowrap sm:inline">
+              A personal assistant, read-only by design.
+            </span>
+            <span aria-hidden="true" className="hidden sm:inline">
+              ·
+            </span>
+            <Credit className="whitespace-nowrap" />
           </div>
           <nav aria-label="Legal and support" className="flex flex-wrap gap-x-5 gap-y-2">
             {links.map(([label, href]) => (

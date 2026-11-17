@@ -262,7 +262,9 @@ Deno.serve(async (req) => {
               ? undefined
               : integrations.find((x) => x.provider === "gitlab");
         const token = gh ? await githubToken(env) : undefined;
-        const known = [...secrets(), ...(token ? [token] : [])];
+        // Contacts allowed to view secrets get unmasked values (owner opt-in).
+        const allowSecrets = contact.can_view_secrets === true;
+        const known = allowSecrets ? [] : [...secrets(), ...(token ? [token] : [])];
         const registry = new Registry(
           gh
             ? new GitHub(
@@ -338,6 +340,7 @@ Deno.serve(async (req) => {
           maxLength: settings.response_length,
           signal: deadline,
           secrets: known,
+          allowSecrets,
           async onTool(e) {
             typing();
             check(

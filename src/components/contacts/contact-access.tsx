@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, ShieldCheck, X } from "lucide-react";
+import { KeyRound, Pencil, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 import { updateContactAccess } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms/action-form";
@@ -53,15 +53,19 @@ export function ContactAccess({
   name,
   access,
   available,
+  canViewSecrets = false,
 }: {
   contactId: string;
   name: string;
+  /** Owner opt-in: may see secrets and full files (e.g. .env). */
+  canViewSecrets?: boolean;
   /** null = all integrations */
   access: string[] | null;
   /** Tasks that exist right now (connected integrations, enabled features). */
   available: Task[];
 }) {
   const [editing, setEditing] = useState(false);
+  const [secrets, setSecrets] = useState(canViewSecrets);
   const [all, setAll] = useState(access === null);
   const everything = available.map((t) => t.id);
   const [tasks, setTasks] = useState<string[]>(access ?? everything);
@@ -77,6 +81,11 @@ export function ContactAccess({
             Access
           </p>
           <Summary access={access} />
+          {canViewSecrets && (
+            <span className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-danger/20 bg-danger-soft px-2 py-0.5 text-[11px] font-medium text-danger">
+              <KeyRound size={12} aria-hidden="true" /> Can view secrets
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -101,7 +110,7 @@ export function ContactAccess({
         <ActionForm
           action={updateContactAccess}
           successMessage="Access updated."
-          className="mt-3 space-y-3 border-t border-border pt-3"
+          className="mt-3 flex flex-col gap-3 border-t border-border pt-3"
         >
           <input type="hidden" name="id" value={contactId} />
           <input type="hidden" name="tasks" value={JSON.stringify(tasks)} />
@@ -138,7 +147,29 @@ export function ContactAccess({
               Requests outside this list get a “no access” reply on WhatsApp.
             </p>
           </div>
-          <SubmitButton size="small" pendingLabel="Saving…">
+          <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-danger/20 bg-danger-soft/60 p-3">
+            <span>
+              <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
+                <KeyRound size={14} aria-hidden="true" className="text-danger" /> May view
+                secrets
+              </span>
+              <span className="mt-0.5 block text-xs leading-5 text-muted">
+                Shows full files and values on request, like .env, keys and tokens,
+                including WorkCopilot&apos;s own. They pass through the AI provider and
+                WhatsApp.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              name="can_view_secrets"
+              checked={secrets}
+              onChange={(e) => setSecrets(e.target.checked)}
+              role="switch"
+              aria-label={`Allow ${name} to view secrets`}
+              className="mt-0.5 h-6 w-11 shrink-0 cursor-pointer appearance-none rounded-full border border-border bg-border transition before:block before:size-5 before:translate-x-0.5 before:rounded-full before:bg-white before:shadow-sm before:transition checked:border-danger checked:bg-danger checked:before:translate-x-5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent motion-reduce:transition-none motion-reduce:before:transition-none"
+            />
+          </label>
+          <SubmitButton size="small" pendingLabel="Saving…" className="self-start">
             Save access
           </SubmitButton>
         </ActionForm>

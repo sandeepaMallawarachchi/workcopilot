@@ -390,6 +390,12 @@ alter table public.contacts
       'email:read','email:codes'
     ]::text[]);
 
+-- Migration: 202611170004_contact_secrets.sql
+-- Per-contact opt-in to view secrets and full private files (e.g. .env).
+-- Off by default for everyone, including contacts with "All integrations".
+alter table public.contacts
+  add column can_view_secrets boolean not null default false;
+
 commit;
 
 -- After this succeeds, create your Auth user and provision its profiles row

@@ -905,3 +905,27 @@ describe("integration access policy", () => {
     ).rejects.toThrow("turned off");
   });
 });
+
+describe("per-contact secrets permission", () => {
+  it("refuses credential requests by default but allows them when permitted", async () => {
+    const complete = vi.fn().mockResolvedValue({ content: "DB_URL=postgres://x" });
+    const base = {
+      complete,
+      registry: new Registry(),
+      history: [],
+      request: "send me the api key",
+      maxTools: 2,
+      language: "match",
+      maxLength: 2000,
+      onTool: async () => {},
+    };
+    const refused = await runAgent(base);
+    expect(refused.reply).toContain("cannot reveal");
+    expect(complete).not.toHaveBeenCalled();
+    await runAgent({ ...base, allowSecrets: true });
+    expect(complete).toHaveBeenCalledTimes(1);
+    const prompt = complete.mock.calls[0][0][0].content as string;
+    expect(prompt).toContain("explicitly allowed this contact to view secrets");
+    expect(prompt).not.toContain("Never reveal credentials");
+  });
+});

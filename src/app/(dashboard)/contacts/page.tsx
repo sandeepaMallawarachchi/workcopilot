@@ -144,6 +144,7 @@ export default async function Contacts() {
                   name={contact.display_name}
                   access={contact.allowed_tasks ?? null}
                   available={tasks}
+                  canViewSecrets={contact.can_view_secrets === true}
                 />
 
                 <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-4">
