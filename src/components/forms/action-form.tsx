@@ -22,6 +22,8 @@ type ActionFormProps = Omit<ComponentProps<"form">, "action" | "onSubmit"> & {
   action: FormAction;
   successMessage?: string;
   resetOnSuccess?: boolean;
+  /** Called after a successful submit (e.g. to close a dialog). */
+  onSuccess?: () => void;
 };
 
 /** Preserves values on failure and announces the result without navigating away. */
@@ -29,6 +31,7 @@ export function ActionForm({
   action,
   successMessage = "Changes saved.",
   resetOnSuccess = false,
+  onSuccess,
   children,
   className,
   ...props
@@ -65,6 +68,7 @@ export function ActionForm({
               }
               if (resetOnSuccess) form.reset();
               setFeedback({ ok: true, message: result?.message ?? successMessage });
+              onSuccess?.();
             } catch {
               setFeedback({
                 ok: false,

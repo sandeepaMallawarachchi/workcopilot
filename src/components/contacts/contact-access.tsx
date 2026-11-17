@@ -63,7 +63,11 @@ export function ContactAccess({
 }) {
   const [editing, setEditing] = useState(false);
   const [all, setAll] = useState(access === null);
-  const [tasks, setTasks] = useState<string[]>(access ?? available.map((t) => t.id));
+  const everything = available.map((t) => t.id);
+  const [tasks, setTasks] = useState<string[]>(access ?? everything);
+  // With "All integrations" on, the list always reflects everything available
+  // right now, without needing a refresh.
+  const shown = all ? everything : tasks;
 
   return (
     <div className="rounded-xl border border-border bg-canvas/60 p-3">
@@ -112,14 +116,18 @@ export function ContactAccess({
               type="checkbox"
               name="all"
               checked={all}
-              onChange={(e) => setAll(e.target.checked)}
+              onChange={(e) => {
+                setAll(e.target.checked);
+                // Turning "All" off starts from the full list, ready to narrow down.
+                if (!e.target.checked) setTasks(everything);
+              }}
               role="switch"
               className="h-6 w-11 shrink-0 cursor-pointer appearance-none rounded-full border border-border bg-border transition before:block before:size-5 before:translate-x-0.5 before:rounded-full before:bg-white before:shadow-sm before:transition checked:border-accent checked:bg-accent checked:before:translate-x-5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent motion-reduce:transition-none motion-reduce:before:transition-none"
             />
           </label>
           <div className={cn(all && "pointer-events-none opacity-40")} aria-hidden={all}>
             <TaskSelect
-              value={tasks}
+              value={shown}
               onChange={setTasks}
               available={available}
               disabled={all}

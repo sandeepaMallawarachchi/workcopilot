@@ -121,7 +121,7 @@ export function TaskSelect({
           id={listId}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute z-30 mt-1.5 w-full min-w-64 rounded-xl border border-border bg-surface p-1.5 shadow-lg"
+          className="absolute z-30 mt-1.5 max-h-72 w-full min-w-64 overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-1.5 shadow-lg"
         >
           {groups.length === 0 && (
             <p className="px-3 py-2.5 text-xs text-muted">
