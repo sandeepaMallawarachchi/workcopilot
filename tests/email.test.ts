@@ -186,15 +186,25 @@ describe("verification codes (no AI)", () => {
       ["anthropic.com", "github.com"],
       "claude link eka",
     );
-    expect(claude?.link).toContain("claude.ai/magic-link");
+    expect(claude.match?.link).toContain("claude.ai/magic-link");
+    expect(claude.unreachable).toEqual([]);
     const github = await findVerification(
       fakeServer(),
       [box],
       ["anthropic.com", "github.com"],
       "github otp",
     );
-    expect(github?.code).toBe("482913");
-    expect(await findVerification(fakeServer(), [box], ["other.com"], "otp")).toBeNull();
+    expect(github.match?.code).toBe("482913");
+    expect(
+      (await findVerification(fakeServer(), [box], ["other.com"], "otp")).match,
+    ).toBeNull();
+    const broken = await findVerification(
+      fakeServer(),
+      [{ ...box, password: "wrong" }],
+      ["anthropic.com"],
+      "otp",
+    );
+    expect(broken).toEqual({ match: null, unreachable: ["Work"] });
   });
   it("keeps the code out of the stored history text", () => {
     const m = verificationMessages({

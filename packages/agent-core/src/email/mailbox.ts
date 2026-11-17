@@ -177,6 +177,7 @@ export async function findVerification(
   withinMinutes = 15,
 ) {
   const cutoff = Date.now() - withinMinutes * 60000;
+  const unreachable: string[] = [];
   const candidates: {
     mailbox: string;
     from: string;
@@ -211,7 +212,8 @@ export async function findVerification(
         }
       });
     } catch {
-      // One unreachable mailbox must not block the others.
+      // One unreachable mailbox must not block the others, but report it.
+      unreachable.push(box.label);
     }
   }
   // Service names in the request ("claude", "github") pick the right email;
@@ -228,7 +230,11 @@ export async function findVerification(
     words.some((w) => `${c.from} ${c.subject}`.toLowerCase().includes(w)),
   );
   const pool = relevant.length ? relevant : candidates;
-  return pool.sort((a, b) => b.receivedAt - a.receivedAt)[0] ?? null;
+  return {
+    match: pool.sort((a, b) => b.receivedAt - a.receivedAt)[0] ?? null,
+    /** Mailboxes that could not be checked (sign-in or network failure). */
+    unreachable,
+  };
 }
 
 /** Verifies the credentials by signing in and opening the inbox read-only. */

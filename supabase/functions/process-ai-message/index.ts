@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
         mailboxes.length &&
         asksForVerificationCode(message.content)
       ) {
-        const found = await findVerification(
+        const { match: found, unreachable } = await findVerification(
           denoImapConnect,
           mailboxes,
           settings.verification_senders,
@@ -128,7 +128,10 @@ Deno.serve(async (req) => {
           const texts = found
             ? verificationMessages(found)
             : {
-                sent: "🔐 No sign-in email from your approved senders arrived in the last 15 minutes. Request a new code, then ask again.",
+                sent:
+                  unreachable.length === mailboxes.length
+                    ? `🔐 I couldn't check your mailbox (${unreachable.join(", ")}). Use "Test" under Integrations → Email to see why.`
+                    : `🔐 No sign-in email from your approved senders arrived in the last 15 minutes${unreachable.length ? ` (couldn't check: ${unreachable.join(", ")})` : ""}. Request a new code, then ask again.`,
                 stored: "🔐 No recent sign-in email from approved senders was found.",
               };
           check(
