@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
 import Shell from "@/components/shell";
+import { businessNumber } from "@/lib/whatsapp/business-number";
 export const dynamic = "force-dynamic";
 export default async function DashboardLayout({
   children,
@@ -13,8 +14,9 @@ export default async function DashboardLayout({
     .eq("workspace_id", workspace)
     .single();
   if (error) throw new Error("Settings could not be loaded");
+  const number = await businessNumber();
   return (
-    <Shell email={email} enabled={s.ai_enabled}>
+    <Shell email={email} enabled={s.ai_enabled} number={number}>
       {children}
     </Shell>
   );

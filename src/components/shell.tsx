@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand";
 import { Credit } from "@/components/credit";
+import { BusinessNumber } from "@/components/layout/business-number";
 import { SubmitButton } from "@/components/forms/action-form";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Badge, WhatsAppIcon } from "@/components/ui";
@@ -34,10 +35,13 @@ export default function Shell({
   children,
   email,
   enabled,
+  number,
 }: {
   children: React.ReactNode;
   email: string;
   enabled: boolean;
+  /** WhatsApp business number to show (null = unavailable). */
+  number: { display: string; test: boolean } | null;
 }) {
   const path = usePathname();
   const active = navigation.find(
@@ -142,10 +146,14 @@ export default function Shell({
             <span className="font-semibold text-ink">{active?.label ?? "Overview"}</span>
           </nav>
           <div className="flex items-center gap-1 sm:gap-2">
-            <span className="mr-2 hidden items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[9px] font-semibold tracking-widest text-muted xl:inline-flex">
-              <WhatsAppIcon size={11} />
-              META TEST NUMBER
-            </span>
+            {number ? (
+              <BusinessNumber display={number.display} test={number.test} />
+            ) : (
+              <span className="mr-2 hidden items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[9px] font-semibold tracking-widest text-muted xl:inline-flex">
+                <WhatsAppIcon size={11} />
+                META TEST NUMBER
+              </span>
+            )}
             <ThemeToggle />
             <Badge good={enabled}>
               <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
