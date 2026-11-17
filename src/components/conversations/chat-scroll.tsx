@@ -33,8 +33,14 @@ export function ChatScroll({ label, children }: { label: string; children: React
   // Follow new or growing content (e.g. after Refresh) only if already at the bottom.
   useEffect(() => {
     if (!content.current) return;
+    let wasHidden = (scroller.current?.clientHeight ?? 0) === 0;
     const observer = new ResizeObserver(() => {
-      if (atBottom.current) scrollToBottom(true);
+      const visible = (scroller.current?.clientHeight ?? 0) > 0;
+      // Just revealed (e.g. a collapsed conversation was expanded): jump to the
+      // newest message instantly; otherwise follow new content smoothly.
+      if (visible && wasHidden) scrollToBottom(false);
+      else if (atBottom.current) scrollToBottom(true);
+      wasHidden = !visible;
     });
     observer.observe(content.current);
     return () => observer.disconnect();
@@ -56,7 +62,7 @@ export function ChatScroll({ label, children }: { label: string; children: React
         role="region"
         aria-label={label}
         tabIndex={0}
-        className="max-h-[calc(100dvh-15rem)] overflow-y-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        className="relative max-h-[calc(100dvh-18rem)] overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
       >
         <div ref={content} className="flex flex-col gap-3 p-4 sm:px-6">
           {children}
