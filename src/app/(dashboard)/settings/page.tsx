@@ -1,5 +1,10 @@
 import { requireAdmin } from "@/lib/auth";
-import { saveSettings } from "@/app/actions";
+import { saveSettings, saveShortcuts } from "@/app/actions";
+import { ShortcutEditor } from "@/components/settings/shortcut-editor";
+import {
+  availableTasks,
+  storedShortcuts,
+} from "../../../../packages/agent-core/src/services/shortcuts";
 import { ActionForm, SubmitButton } from "@/components/forms/action-form";
 import { PageTitle, Panel, Badge, assertData } from "@/components/ui";
 import { Field, Input, Select, Switch } from "@/components/ui/form";
@@ -12,6 +17,27 @@ export default async function Settings() {
     .eq("workspace_id", workspace)
     .single();
   assertData(error);
+  // What the agent can do right now, so the shortcut dropdown only offers real tasks.
+  const [{ data: integrations }, { data: mailboxes }] = await Promise.all([
+    db
+      .from("integrations")
+      .select("provider,status,capabilities")
+      .eq("workspace_id", workspace),
+    db.from("mailboxes").select("id").eq("workspace_id", workspace),
+  ]);
+  const caps = (provider: string) => {
+    const row = integrations?.find(
+      (i) => i.provider === provider && i.status === "connected",
+    );
+    return row
+      ? (row.capabilities ?? ["code", "commits", "issues", "pull_requests", "pipelines"])
+      : null;
+  };
+  const tasks = availableTasks({
+    github: caps("github"),
+    gitlab: caps("gitlab"),
+    email: (mailboxes?.length ?? 0) > 0,
+  });
   const numberSettings = [
     {
       name: "max_tool_calls",
@@ -75,8 +101,8 @@ export default async function Settings() {
                 defaultChecked={settings.ai_enabled}
               />
               <Field
-                label="Activation prefix"
-                hint="Case-insensitive, at the start of a message. Starts a conversation with the agent."
+                label="Main prefix (all tools)"
+                hint="Case-insensitive, at the start of a message. Uses every connected tool. Add focused shortcuts like @github below."
               >
                 <Input
                   name="activation_prefix"
@@ -178,6 +204,30 @@ export default async function Settings() {
           </SubmitButton>
         </div>
       </ActionForm>
+
+      <Panel title="Shortcuts">
+        <ActionForm
+          action={saveShortcuts}
+          successMessage="Shortcuts saved."
+          className="p-5 sm:p-6"
+        >
+          <p className="mb-5 max-w-2xl text-xs leading-6 text-muted">
+            Give a prefix its own job, like{" "}
+            <span className="font-mono text-ink">@github</span> for repositories or{" "}
+            <span className="font-mono text-ink">@email</span> for your inbox. The agent
+            then only uses those tools, so answers are faster, cheaper and stay on topic.
+          </p>
+          <ShortcutEditor
+            mainPrefix={settings.activation_prefix}
+            initial={storedShortcuts(settings.shortcuts)}
+            available={tasks}
+            followupMinutes={settings.followup_minutes ?? 10}
+          />
+          <div className="mt-6 flex justify-end border-t border-border pt-5">
+            <SubmitButton pendingLabel="Saving shortcuts…">Save shortcuts</SubmitButton>
+          </div>
+        </ActionForm>
+      </Panel>
     </>
   );
 }

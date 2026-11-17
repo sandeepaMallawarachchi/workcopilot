@@ -20,6 +20,10 @@ import {
 } from "../../packages/agent-core/src/security/secret-box";
 import { nodeImapConnect } from "@/lib/email/imap-transport";
 import {
+  parseShortcuts,
+  storedShortcuts,
+} from "../../packages/agent-core/src/services/shortcuts";
+import {
   ALL_CAPABILITIES,
   parseBlockedPatterns,
 } from "../../packages/agent-core/src/security/access";
@@ -112,6 +116,17 @@ export async function saveSettings(form: FormData) {
       retention_days: z.coerce.number().int().min(1).max(365),
     })
     .parse(Object.fromEntries(form));
+  const { data: current } = await service()
+    .from("agent_settings")
+    .select("shortcuts")
+    .eq("workspace_id", workspace)
+    .single();
+  if (
+    storedShortcuts(current?.shortcuts).some(
+      (s) => s.prefix.toLowerCase() === value.activation_prefix.toLowerCase(),
+    )
+  )
+    throw new Error(`${value.activation_prefix} is already used by a shortcut.`);
   checked(
     await service()
       .from("agent_settings")
@@ -260,6 +275,38 @@ export async function saveIntegrationAccess(form: FormData): Promise<FormActionR
   revalidatePath("/integrations", "layout");
   return { ok: true, message: "Agent access rules saved." };
 }
+export async function saveShortcuts(form: FormData): Promise<FormActionResult> {
+  const { workspace } = await requireAdmin();
+  const db = service();
+  const { data: settings } = await db
+    .from("agent_settings")
+    .select("activation_prefix")
+    .eq("workspace_id", workspace)
+    .single();
+  let shortcuts;
+  try {
+    shortcuts = parseShortcuts(
+      JSON.parse(String(form.get("shortcuts") ?? "[]")),
+      settings?.activation_prefix ?? "@ai",
+    );
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Invalid shortcuts." };
+  }
+  checked(
+    await db
+      .from("agent_settings")
+      .update({ shortcuts, updated_at: new Date().toISOString() })
+      .eq("workspace_id", workspace),
+  );
+  revalidatePath("/settings");
+  return {
+    ok: true,
+    message: shortcuts.length
+      ? `Saved ${shortcuts.length} shortcut${shortcuts.length === 1 ? "" : "s"}.`
+      : "Shortcuts cleared.",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Email (read-only IMAP)
 // ---------------------------------------------------------------------------

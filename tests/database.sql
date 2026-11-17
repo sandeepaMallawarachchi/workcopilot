@@ -16,6 +16,15 @@ begin
  update public.agent_settings set followup_minutes=10 where workspace_id=w;
  update public.conversations set reset_at=now()+interval '1 second' where contact_id=(select id from public.contacts where phone='+94770000001');
  result:=public.accept_message('test.afterreset','+94770000001','after reset',now());if result<>'not_activated' then raise exception 'Follow-up survived history reset';end if;
+ update public.conversations set reset_at=now()-interval '1 hour' where contact_id=(select id from public.contacts where phone='+94770000001');
+ -- now() is fixed inside one transaction; backdate earlier messages so "latest" is unambiguous.
+ update public.messages set created_at=now()-interval '2 minutes' where whatsapp_message_id in ('test.active','test.followup');
+ update public.agent_settings set shortcuts='[{"prefix":"@github","tasks":["github:code"]}]' where workspace_id=w;
+ result:=public.accept_message('test.shortcut','+94770000001','@GitHub latest commit',now());if result<>'accepted' then raise exception 'Shortcut prefix rejected: %',result;end if;
+ if (select shortcut from public.messages where whatsapp_message_id='test.shortcut') is distinct from '@github' then raise exception 'Shortcut not recorded';end if;
+ if (select content from public.messages where whatsapp_message_id='test.shortcut')<>'latest commit' then raise exception 'Shortcut prefix not stripped';end if;
+ result:=public.accept_message('test.shortcut.follow','+94770000001','and the one before?',now());if result<>'accepted' then raise exception 'Shortcut follow-up rejected: %',result;end if;
+ if (select shortcut from public.messages where whatsapp_message_id='test.shortcut.follow') is distinct from '@github' then raise exception 'Follow-up did not inherit shortcut';end if;
  select count(*) into before_count from public.agent_jobs;
  result:=public.accept_message('test.active','+94770000001','@ai duplicate',now());if result<>'duplicate' then raise exception 'Deduplication failed';end if;
  if (select count(*) from public.agent_jobs)<>before_count then raise exception 'Duplicate job created';end if;

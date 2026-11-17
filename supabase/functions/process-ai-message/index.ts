@@ -34,6 +34,13 @@ import {
   type HistoryMessage,
 } from "../../../packages/agent-core/src/services/conversation.ts";
 import { splitReply } from "../../../packages/agent-core/src/services/response.ts";
+import {
+  intersect,
+  isHelpRequest,
+  scopeFor,
+  storedShortcuts,
+  welcomeText,
+} from "../../../packages/agent-core/src/services/shortcuts.ts";
 import { redact } from "../../../packages/agent-core/src/security/sanitization.ts";
 import { githubToken } from "../../../packages/agent-core/src/services/credentials.ts";
 Deno.serve(async (req) => {
@@ -107,12 +114,66 @@ Deno.serve(async (req) => {
         );
       };
       typing();
-      const mailboxes = await loadMailboxes(client, job.workspace_id);
+      // Shortcut scope (e.g. "@github"): only the chosen tools are loaded and
+      // offered to the model, which saves tokens and keeps answers on topic.
+      const shortcuts = storedShortcuts(settings.shortcuts);
+      const scope = scopeFor(message.shortcut, shortcuts);
+      // One-time welcome listing the prefixes, sent before a new contact's first
+      // reply. Kept out of history (p_reply) so it never costs tokens later.
+      const welcome =
+        contact.welcomed_at === null
+          ? welcomeText({
+              name: contact.display_name,
+              mainPrefix: settings.activation_prefix,
+              shortcuts,
+              followupMinutes: settings.followup_minutes ?? 10,
+              first: true,
+            })
+          : null;
+      const reply = async (
+        stored: string,
+        sent: string | null,
+        sources: string[] = [],
+      ) => {
+        check(
+          await client.rpc("save_reply", {
+            p_job: job.id,
+            p_token: job.lease_token,
+            p_reply: stored,
+            p_sources: sources,
+            p_parts: [...(welcome ? [welcome] : []), ...(sent ? splitReply(sent) : [])],
+          }),
+        );
+        if (welcome)
+          check(
+            await client
+              .from("contacts")
+              .update({ welcomed_at: new Date().toISOString() })
+              .eq("id", contact.id),
+          );
+      };
+      const mailboxes = scope.email ? await loadMailboxes(client, job.workspace_id) : [];
+      let handled = false;
+      // "@ai help" / "menu": the shortcut list, no AI needed.
+      if (isHelpRequest(message.content)) {
+        await reply(
+          "📋 Sent the list of shortcuts.",
+          welcome
+            ? null
+            : welcomeText({
+                mainPrefix: settings.activation_prefix,
+                shortcuts,
+                followupMinutes: settings.followup_minutes ?? 10,
+                first: false,
+              }),
+        );
+        handled = true;
+      }
       // Opt-in verification codes: answered WITHOUT the AI, only from approved
       // senders, only recent emails. The code is sent but never stored in
       // history (which is later resent to the AI).
-      let handled = false;
       if (
+        !handled &&
         settings.verification_codes_enabled &&
         (settings.verification_senders ?? []).length &&
         mailboxes.length &&
@@ -134,15 +195,7 @@ Deno.serve(async (req) => {
                     : `🔐 No sign-in email from your approved senders arrived in the last 15 minutes${unreachable.length ? ` (couldn't check: ${unreachable.join(", ")})` : ""}. Request a new code, then ask again.`,
                 stored: "🔐 No recent sign-in email from approved senders was found.",
               };
-          check(
-            await client.rpc("save_reply", {
-              p_job: job.id,
-              p_token: job.lease_token,
-              p_reply: texts.stored,
-              p_sources: [],
-              p_parts: splitReply(texts.sent),
-            }),
-          );
+          await reply(texts.stored, texts.sent);
           handled = true;
         }
       }
@@ -155,8 +208,15 @@ Deno.serve(async (req) => {
               .eq("workspace_id", job.workspace_id)
               .eq("status", "connected"),
           ) ?? [];
-        const gh = integrations.find((x) => x.provider === "github"),
-          gl = integrations.find((x) => x.provider === "gitlab");
+        // A shortcut that excludes a provider skips it entirely (no token, no lookups).
+        const gh =
+            scope.github === null
+              ? undefined
+              : integrations.find((x) => x.provider === "github"),
+          gl =
+            scope.gitlab === null
+              ? undefined
+              : integrations.find((x) => x.provider === "gitlab");
         const token = gh ? await githubToken(env) : undefined;
         const known = [...secrets(), ...(token ? [token] : [])];
         const registry = new Registry(
@@ -189,8 +249,8 @@ Deno.serve(async (req) => {
           known,
           // Tolerates a database without the access-policy migration (all allowed).
           {
-            github: gh?.capabilities ?? undefined,
-            gitlab: gl?.capabilities ?? undefined,
+            github: intersect(gh?.capabilities ?? undefined, scope.github),
+            gitlab: intersect(gl?.capabilities ?? undefined, scope.gitlab),
           },
           mailboxes.length
             ? new EmailTools(
@@ -243,15 +303,7 @@ Deno.serve(async (req) => {
             );
           },
         });
-        check(
-          await client.rpc("save_reply", {
-            p_job: job.id,
-            p_token: job.lease_token,
-            p_reply: result.reply,
-            p_sources: result.sources,
-            p_parts: splitReply(result.reply),
-          }),
-        );
+        await reply(result.reply, result.reply, result.sources);
       }
     }
     const sent = await deliver(job.id, job.lease_token);
