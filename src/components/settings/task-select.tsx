@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Mail } from "lucide-react";
+import { Check, ChevronDown, KeyRound, Lock, Mail } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { SiGithub, SiGitlab } from "react-icons/si";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,16 @@ export const PROVIDER_ICONS: Record<TaskProvider, React.ReactNode> = {
   email: <Mail size={14} aria-hidden="true" className="text-accent" />,
 };
 
+/** Groups beyond integrations (e.g. the per-contact "Secrets" permission). */
+const GROUP_ICONS: Record<string, React.ReactNode> = {
+  ...PROVIDER_ICONS,
+  secrets: <KeyRound size={14} aria-hidden="true" className="text-danger" />,
+};
+const GROUP_NAMES: Record<string, string> = { ...PROVIDER_NAMES, secrets: "Secrets" };
+
+/** A selectable task; `provider` is the group it is listed under. */
+export type SelectTask = Omit<Task, "provider"> & { provider: TaskProvider | "secrets" };
+
 /** Multi-select of agent tasks, grouped by provider. Lists only `available` tasks. */
 export function TaskSelect({
   value,
@@ -25,11 +35,14 @@ export function TaskSelect({
   disabled = false,
   allowEmpty = false,
   emptyLabel = "Choose tasks…",
+  locked = [],
 }: {
   value: string[];
   onChange: (tasks: string[]) => void;
-  available: Task[];
+  available: SelectTask[];
   disabled?: boolean;
+  /** Shown ticked but not changeable (e.g. covered by "All integrations"). */
+  locked?: string[];
   /** An empty selection is valid (e.g. a contact with no integration access). */
   allowEmpty?: boolean;
   emptyLabel?: string;
@@ -52,13 +65,15 @@ export function TaskSelect({
   }, [open]);
 
   const groups = useMemo(() => {
-    const map = new Map<TaskProvider, Task[]>();
+    const map = new Map<string, SelectTask[]>();
     for (const t of available) map.set(t.provider, [...(map.get(t.provider) ?? []), t]);
     return [...map];
   }, [available]);
   const unavailable = value.filter((id) => !available.some((t) => t.id === id));
-  const toggle = (id: string) =>
+  const toggle = (id: string) => {
+    if (locked.includes(id)) return;
     onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+  };
 
   const summary = groups
     .map(([provider, tasks]) => {
@@ -67,12 +82,12 @@ export function TaskSelect({
       return {
         provider,
         text:
-          picked.length === tasks.length
-            ? `All ${PROVIDER_NAMES[provider]}`
+          picked.length === tasks.length && tasks.length > 1
+            ? `All ${GROUP_NAMES[provider]}`
             : picked.map((t) => t.label).join(", "),
       };
     })
-    .filter(Boolean) as { provider: TaskProvider; text: string }[];
+    .filter(Boolean) as { provider: string; text: string }[];
 
   return (
     <div ref={root} className="relative min-w-0 flex-1">
@@ -96,7 +111,7 @@ export function TaskSelect({
                 key={s.provider}
                 className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-accent-soft px-2 py-0.5 text-xs text-ink"
               >
-                {PROVIDER_ICONS[s.provider]}
+                {GROUP_ICONS[s.provider]}
                 <span className="truncate">{s.text}</span>
               </span>
             ))
@@ -134,9 +149,9 @@ export function TaskSelect({
               <div key={provider} className="py-1 first:pt-0 last:pb-0">
                 <div className="flex items-center justify-between px-2.5 py-1.5">
                   <span className="flex items-center gap-2 text-xs font-semibold text-ink">
-                    {PROVIDER_ICONS[provider]} {PROVIDER_NAMES[provider]}
+                    {GROUP_ICONS[provider]} {GROUP_NAMES[provider]}
                   </span>
-                  {tasks.length > 1 && (
+                  {tasks.length > 1 && !tasks.every((t) => locked.includes(t.id)) && (
                     <button
                       type="button"
                       onClick={() =>
@@ -153,15 +168,21 @@ export function TaskSelect({
                   )}
                 </div>
                 {tasks.map((t) => {
-                  const on = value.includes(t.id);
+                  const on = value.includes(t.id) || locked.includes(t.id);
+                  const isLocked = locked.includes(t.id);
                   return (
                     <button
                       key={t.id}
                       type="button"
                       role="option"
                       aria-selected={on}
+                      aria-disabled={isLocked}
+                      title={isLocked ? "Included by All integrations" : undefined}
                       onClick={() => toggle(t.id)}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink hover:bg-accent-soft focus-visible:bg-accent-soft focus-visible:outline-none"
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink focus-visible:bg-accent-soft focus-visible:outline-none",
+                        isLocked ? "cursor-default opacity-60" : "hover:bg-accent-soft",
+                      )}
                     >
                       <span
                         className={cn(
@@ -172,6 +193,13 @@ export function TaskSelect({
                         {on && <Check size={12} aria-hidden="true" />}
                       </span>
                       {t.label}
+                      {isLocked && (
+                        <Lock
+                          size={12}
+                          aria-hidden="true"
+                          className="ml-auto text-muted"
+                        />
+                      )}
                     </button>
                   );
                 })}
