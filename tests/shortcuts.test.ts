@@ -78,3 +78,51 @@ describe("prefix shortcuts", () => {
     expect(isHelpRequest("help me find the README")).toBe(false);
   });
 });
+
+describe("per-contact access", () => {
+  it("combines contact access with the shortcut scope", async () => {
+    const { combineScopes, scopeFromTasks, FULL_SCOPE } =
+      await import("../packages/agent-core/src/services/shortcuts");
+    const contact = scopeFromTasks(["github:code", "email:read"]);
+    expect(combineScopes(FULL_SCOPE, contact)).toMatchObject({
+      github: ["code"],
+      gitlab: null,
+      email: true,
+      codes: false,
+    });
+    // @github shortcut allows code+commits; contact only code → code
+    const both = combineScopes(scopeFor("@github", shortcuts), contact);
+    expect(both).toMatchObject({ github: ["code"], email: false });
+    expect(combineScopes(FULL_SCOPE, scopeFromTasks(null))).toEqual(FULL_SCOPE);
+    expect(scopeFromTasks(["email:read", "email:codes"]).codes).toBe(true);
+  });
+  it("detects requests for services the contact cannot use", async () => {
+    const { deniedProviders, noAccessText, scopeFromTasks } =
+      await import("../packages/agent-core/src/services/shortcuts");
+    const githubOnly = scopeFromTasks(["github:code"]);
+    expect(deniedProviders("any unread emails?", githubOnly)).toEqual(["email"]);
+    expect(deniedProviders("latest commit in projectlens", githubOnly)).toEqual([]);
+    expect(deniedProviders("gitlab pipeline status", githubOnly)).toEqual(["gitlab"]);
+    expect(deniedProviders("show the repo readme", scopeFromTasks([]))).toEqual([
+      "github",
+      "gitlab",
+    ]);
+    expect(deniedProviders("what's the weather", scopeFromTasks([]))).toEqual([]);
+    expect(deniedProviders("emails?", scopeFromTasks(null))).toEqual([]);
+    expect(noAccessText(["github", "gitlab"])).toBe(
+      "🔒 You don't have access to GitHub or GitLab through WorkCopilot. Ask the owner to grant it if you need it.",
+    );
+  });
+  it("lists only usable shortcuts in the contact's welcome", () => {
+    const text = welcomeText({
+      mainPrefix: "@ai",
+      shortcuts,
+      followupMinutes: 10,
+      first: false,
+      access: ["email:read"],
+    });
+    expect(text).toContain("@email");
+    expect(text).not.toContain("@github");
+    expect(text).toContain("the tools you have access to");
+  });
+});

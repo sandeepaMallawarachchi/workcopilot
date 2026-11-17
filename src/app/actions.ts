@@ -20,6 +20,7 @@ import {
 } from "../../packages/agent-core/src/security/secret-box";
 import { nodeImapConnect } from "@/lib/email/imap-transport";
 import {
+  parseContactAccess,
   parseShortcuts,
   storedShortcuts,
 } from "../../packages/agent-core/src/services/shortcuts";
@@ -100,6 +101,35 @@ export async function updateContact(form: FormData) {
     );
   }
   revalidatePath("/contacts");
+}
+export async function updateContactAccess(form: FormData): Promise<FormActionResult> {
+  const { workspace } = await requireAdmin();
+  const id = idSchema.parse(form.get("id"));
+  let allowed: string[] | null = null;
+  if (form.get("all") !== "on") {
+    try {
+      allowed = parseContactAccess(JSON.parse(String(form.get("tasks") ?? "[]")));
+    } catch {
+      return { ok: false, message: "Invalid access selection." };
+    }
+  }
+  checked(
+    await service()
+      .from("contacts")
+      .update({ allowed_tasks: allowed, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("workspace_id", workspace),
+  );
+  revalidatePath("/contacts");
+  return {
+    ok: true,
+    message:
+      allowed === null
+        ? "Access set to all integrations."
+        : allowed.length
+          ? "Access updated."
+          : "Access removed: this contact can only chat, without integrations.",
+  };
 }
 export async function saveSettings(form: FormData) {
   const { workspace } = await requireAdmin();

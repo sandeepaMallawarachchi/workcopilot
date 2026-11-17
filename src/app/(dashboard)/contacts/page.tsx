@@ -11,6 +11,26 @@ import {
   WhatsAppIcon,
 } from "@/components/ui";
 import { Checkbox, Field, Input, Select } from "@/components/ui/form";
+import { ChevronDown } from "lucide-react";
+import { ContactAccess } from "@/components/contacts/contact-access";
+import {
+  CODES_TASK,
+  PROVIDER_NAMES,
+  TASKS,
+  availableTasks,
+} from "../../../../packages/agent-core/src/services/shortcuts";
+
+/** One-line access summary for the collapsed contact row. */
+function accessSummary(access: string[] | null) {
+  if (access === null) return "All integrations";
+  if (!access.length) return "Chat only";
+  const providers = [
+    ...new Set(
+      [...TASKS, CODES_TASK].filter((t) => access.includes(t.id)).map((t) => t.provider),
+    ),
+  ];
+  return providers.map((p) => PROVIDER_NAMES[p]).join(", ");
+}
 
 export default async function Contacts() {
   const { db, workspace } = await requireAdmin();
@@ -25,12 +45,39 @@ export default async function Contacts() {
     .select("contact_id,messages(count)")
     .eq("workspace_id", workspace);
   assertData(usage.error);
+  // Tasks that exist right now, so access can only be granted to real things.
+  const [{ data: integrations }, { data: mailboxes }, { data: settings }] =
+    await Promise.all([
+      db
+        .from("integrations")
+        .select("provider,status,capabilities")
+        .eq("workspace_id", workspace),
+      db.from("mailboxes").select("id").eq("workspace_id", workspace),
+      db
+        .from("agent_settings")
+        .select("verification_codes_enabled")
+        .eq("workspace_id", workspace)
+        .single(),
+    ]);
+  const caps = (provider: string) => {
+    const row = integrations?.find(
+      (i) => i.provider === provider && i.status === "connected",
+    );
+    return row
+      ? (row.capabilities ?? ["code", "commits", "issues", "pull_requests", "pipelines"])
+      : null;
+  };
+  const hasMail = (mailboxes?.length ?? 0) > 0;
+  const tasks = [
+    ...availableTasks({ github: caps("github"), gitlab: caps("gitlab"), email: hasMail }),
+    ...(hasMail && settings?.verification_codes_enabled ? [CODES_TASK] : []),
+  ];
   return (
     <>
       <PageTitle
         eyebrow="EXPLICIT ACCESS"
         title="Your trusted circle."
-        description="Choose who can activate your assistant. Every request must start with your activation prefix."
+        description="Choose who can use your assistant, and which integrations each person can reach."
       />
       <div className="grid items-start gap-6 xl:grid-cols-[1.15fr_1fr]">
         <Panel title={`Authorized contacts${data?.length ? ` · ${data.length}` : ""}`}>
@@ -56,8 +103,8 @@ export default async function Contacts() {
                   { operation: "delete", value: false, label: "Remove" },
                 ] as const;
                 return (
-                  <article key={contact.id} className="p-5 sm:p-6">
-                    <div className="flex flex-wrap items-center gap-3">
+                  <details key={contact.id} className="group">
+                    <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 hover:bg-canvas/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-6 [&::-webkit-details-marker]:hidden">
                       <span
                         aria-hidden="true"
                         className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-bold text-accent"
@@ -68,9 +115,13 @@ export default async function Contacts() {
                         <h3 className="text-sm font-semibold text-ink">
                           {contact.display_name}
                         </h3>
-                        <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted">
-                          <WhatsAppIcon size={12} />
-                          {contact.phone}
+                        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+                          <span className="inline-flex items-center gap-1.5">
+                            <WhatsAppIcon size={12} />
+                            {contact.phone}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>{accessSummary(contact.allowed_tasks ?? null)}</span>
                         </p>
                       </div>
                       <Badge good={contact.active && contact.ai_access}>
@@ -80,45 +131,59 @@ export default async function Contacts() {
                             ? "AI allowed"
                             : "AI disabled"}
                       </Badge>
-                    </div>
-                    <div className="my-5 space-y-1.5 text-xs leading-6 text-muted">
-                      <p>Last activity: {date(contact.last_activity)}</p>
-                      <p>
-                        {usage.data?.find((item) => item.contact_id === contact.id)
-                          ?.messages?.[0]?.count ?? 0}{" "}
-                        stored AI messages ·{" "}
-                        {contact.preferred_language ?? "Match language"}
-                      </p>
-                      <p>Activation: prefix required</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {operations.map(({ operation, value, label }) => (
-                        <ActionForm
-                          action={updateContact}
-                          key={operation}
-                          successMessage="Contact updated."
-                        >
-                          <input type="hidden" name="id" value={contact.id} />
-                          <input type="hidden" name="operation" value={operation} />
-                          <input type="hidden" name="value" value={String(value)} />
-                          <SubmitButton
-                            variant={operation === "delete" ? "danger" : "secondary"}
-                            size="small"
-                            pendingLabel={
-                              operation === "delete" ? "Removing…" : "Updating…"
-                            }
-                            confirmMessage={
-                              operation === "delete"
-                                ? `Remove ${contact.display_name}? This also deletes their stored conversation history.`
-                                : undefined
-                            }
+                      <ChevronDown
+                        size={18}
+                        aria-hidden="true"
+                        className="shrink-0 text-muted transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                      />
+                    </summary>
+                    <div className="px-5 pb-5 sm:px-6 sm:pb-6">
+                      <div className="mb-5 space-y-1.5 text-xs leading-6 text-muted">
+                        <p>Last activity: {date(contact.last_activity)}</p>
+                        <p>
+                          {usage.data?.find((item) => item.contact_id === contact.id)
+                            ?.messages?.[0]?.count ?? 0}{" "}
+                          stored AI messages ·{" "}
+                          {contact.preferred_language ?? "Match language"}
+                        </p>
+                      </div>
+                      <div className="mb-5">
+                        <ContactAccess
+                          contactId={contact.id}
+                          name={contact.display_name}
+                          access={contact.allowed_tasks ?? null}
+                          available={tasks}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {operations.map(({ operation, value, label }) => (
+                          <ActionForm
+                            action={updateContact}
+                            key={operation}
+                            successMessage="Contact updated."
                           >
-                            {label}
-                          </SubmitButton>
-                        </ActionForm>
-                      ))}
+                            <input type="hidden" name="id" value={contact.id} />
+                            <input type="hidden" name="operation" value={operation} />
+                            <input type="hidden" name="value" value={String(value)} />
+                            <SubmitButton
+                              variant={operation === "delete" ? "danger" : "secondary"}
+                              size="small"
+                              pendingLabel={
+                                operation === "delete" ? "Removing…" : "Updating…"
+                              }
+                              confirmMessage={
+                                operation === "delete"
+                                  ? `Remove ${contact.display_name}? This also deletes their stored conversation history.`
+                                  : undefined
+                              }
+                            >
+                              {label}
+                            </SubmitButton>
+                          </ActionForm>
+                        ))}
+                      </div>
                     </div>
-                  </article>
+                  </details>
                 );
               })}
             </div>

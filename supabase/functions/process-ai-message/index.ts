@@ -35,7 +35,11 @@ import {
 } from "../../../packages/agent-core/src/services/conversation.ts";
 import { splitReply } from "../../../packages/agent-core/src/services/response.ts";
 import {
+  combineScopes,
+  deniedProviders,
   intersect,
+  noAccessText,
+  scopeFromTasks,
   isHelpRequest,
   scopeFor,
   storedShortcuts,
@@ -117,7 +121,10 @@ Deno.serve(async (req) => {
       // Shortcut scope (e.g. "@github"): only the chosen tools are loaded and
       // offered to the model, which saves tokens and keeps answers on topic.
       const shortcuts = storedShortcuts(settings.shortcuts);
-      const scope = scopeFor(message.shortcut, shortcuts);
+      // Per-contact access (null = all integrations) ∩ shortcut scope.
+      const access: string[] | null = contact.allowed_tasks ?? null;
+      const shortcutScope = scopeFor(message.shortcut, shortcuts);
+      const scope = combineScopes(shortcutScope, scopeFromTasks(access));
       // One-time welcome listing the prefixes, sent before a new contact's first
       // reply. Kept out of history (p_reply) so it never costs tokens later.
       const welcome =
@@ -128,6 +135,7 @@ Deno.serve(async (req) => {
               shortcuts,
               followupMinutes: settings.followup_minutes ?? 10,
               first: true,
+              access,
             })
           : null;
       const reply = async (
@@ -154,8 +162,39 @@ Deno.serve(async (req) => {
       };
       const mailboxes = scope.email ? await loadMailboxes(client, job.workspace_id) : [];
       let handled = false;
+      // No access: answer clearly without the AI instead of a confusing reply.
+      // 1) A shortcut whose services this contact cannot use at all.
+      const usedShortcut = message.shortcut
+        ? shortcuts.find((x) => x.prefix.toLowerCase() === message.shortcut.toLowerCase())
+        : undefined;
+      if (
+        usedShortcut &&
+        scope.github === null &&
+        scope.gitlab === null &&
+        !scope.email
+      ) {
+        const providers = [
+          ...new Set(
+            usedShortcut.tasks.map(
+              (t) => t.split(":")[0] as "github" | "gitlab" | "email",
+            ),
+          ),
+        ];
+        const text = noAccessText(providers, usedShortcut.prefix);
+        await reply(text, text);
+        handled = true;
+      }
+      // 2) A request that names a service the contact has no access to.
+      const denied = handled
+        ? []
+        : deniedProviders(message.content, scopeFromTasks(access));
+      if (!handled && denied.length && !isHelpRequest(message.content)) {
+        const text = noAccessText(denied);
+        await reply(text, text);
+        handled = true;
+      }
       // "@ai help" / "menu": the shortcut list, no AI needed.
-      if (isHelpRequest(message.content)) {
+      if (!handled && isHelpRequest(message.content)) {
         await reply(
           "📋 Sent the list of shortcuts.",
           welcome
@@ -165,6 +204,7 @@ Deno.serve(async (req) => {
                 shortcuts,
                 followupMinutes: settings.followup_minutes ?? 10,
                 first: false,
+                access,
               }),
         );
         handled = true;
@@ -175,6 +215,7 @@ Deno.serve(async (req) => {
       if (
         !handled &&
         settings.verification_codes_enabled &&
+        scope.codes &&
         (settings.verification_senders ?? []).length &&
         mailboxes.length &&
         asksForVerificationCode(message.content)

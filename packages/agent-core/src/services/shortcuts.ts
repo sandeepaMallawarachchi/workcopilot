@@ -44,6 +44,13 @@ export const TASKS: Task[] = [
     label: "Search & read email",
   },
 ];
+/** Contact-only permission: the opt-in verification-codes feature. */
+export const CODES_TASK: Task = {
+  id: "email:codes",
+  provider: "email",
+  capability: "codes",
+  label: "Verification codes",
+};
 export const PROVIDER_NAMES: Record<TaskProvider, string> = {
   github: "GitHub",
   gitlab: "GitLab",
@@ -109,25 +116,119 @@ export function storedShortcuts(value: unknown): Shortcut[] {
  * Access for one request. `shortcut` null/unknown = main prefix = everything
  * the integrations allow. Otherwise the intersection with the shortcut's tasks.
  */
-export function scopeFor(shortcut: string | null | undefined, shortcuts: Shortcut[]) {
-  const match = shortcut
-    ? shortcuts.find((s) => s.prefix.toLowerCase() === shortcut.toLowerCase())
-    : undefined;
-  if (!match)
-    return { all: true as const, github: undefined, gitlab: undefined, email: true };
+export type Scope = {
+  all: boolean;
+  /** undefined = no restriction; null = provider excluded; array = allowed capabilities */
+  github: string[] | null | undefined;
+  gitlab: string[] | null | undefined;
+  email: boolean;
+  /** Opt-in verification codes (contact permission). */
+  codes: boolean;
+};
+export const FULL_SCOPE: Scope = {
+  all: true,
+  github: undefined,
+  gitlab: undefined,
+  email: true,
+  codes: true,
+};
+
+/** Scope from a task list; null = everything. */
+export function scopeFromTasks(tasks: string[] | null | undefined): Scope {
+  if (!tasks) return FULL_SCOPE;
   const caps = (provider: TaskProvider) =>
-    TASKS.filter((t) => t.provider === provider && match.tasks.includes(t.id)).map(
+    TASKS.filter((t) => t.provider === provider && tasks.includes(t.id)).map(
       (t) => t.capability,
     );
   const gh = caps("github"),
     gl = caps("gitlab");
   return {
-    all: false as const,
-    /** null = provider excluded entirely; array = allowed capabilities */
+    all: false,
     github: gh.length ? gh : null,
     gitlab: gl.length ? gl : null,
-    email: match.tasks.includes("email:read"),
+    email: tasks.includes("email:read"),
+    codes: tasks.includes(CODES_TASK.id),
   };
+}
+
+/**
+ * Access for one request. `shortcut` null/unknown = main prefix = everything
+ * the integrations allow. Otherwise the shortcut's tasks.
+ */
+export function scopeFor(
+  shortcut: string | null | undefined,
+  shortcuts: Shortcut[],
+): Scope {
+  const match = shortcut
+    ? shortcuts.find((s) => s.prefix.toLowerCase() === shortcut.toLowerCase())
+    : undefined;
+  // Shortcuts never restrict verification codes on their own; email access does.
+  return match ? { ...scopeFromTasks(match.tasks), codes: true } : FULL_SCOPE;
+}
+
+/** Both must allow it: shortcut scope ∩ contact access. */
+export function combineScopes(a: Scope, b: Scope): Scope {
+  const merge = (x: string[] | null | undefined, y: string[] | null | undefined) => {
+    if (x === undefined) return y;
+    if (y === undefined) return x;
+    if (x === null || y === null) return null;
+    const both = x.filter((c) => y.includes(c));
+    return both.length ? both : null;
+  };
+  return {
+    all: a.all && b.all,
+    github: merge(a.github, b.github),
+    gitlab: merge(a.gitlab, b.gitlab),
+    email: a.email && b.email,
+    codes: a.codes && b.codes && a.email && b.email,
+  };
+}
+
+/** Which services a message is about (keyword-based, conservative). */
+export function requestedProviders(text: string) {
+  const t = text.toLowerCase();
+  return {
+    email: /\b(e-?mails?|mails?|inbox|gmail|unread)\b|ඊමේල්/.test(t),
+    github: /\bgithub\b/.test(t),
+    gitlab: /\bgitlab\b/.test(t),
+    repo: /\b(repos?|repositor(y|ies)|commits?|pull requests?|merge requests?|pipelines?|branch(es)?|readme)\b|රිපෝ/.test(
+      t,
+    ),
+  };
+}
+
+/** Services the message asks for that the scope does not allow. */
+export function deniedProviders(text: string, scope: Scope): TaskProvider[] {
+  if (scope.all) return [];
+  const asked = requestedProviders(text);
+  const denied: TaskProvider[] = [];
+  if (asked.email && !scope.email) denied.push("email");
+  if (asked.github && scope.github === null) denied.push("github");
+  if (asked.gitlab && scope.gitlab === null) denied.push("gitlab");
+  if (
+    asked.repo &&
+    !asked.github &&
+    !asked.gitlab &&
+    scope.github === null &&
+    scope.gitlab === null
+  )
+    denied.push("github", "gitlab");
+  return denied;
+}
+
+/** Friendly WhatsApp reply when a contact lacks access. */
+export function noAccessText(providers: TaskProvider[], prefix?: string) {
+  const names = [...new Set(providers)].map((p) => PROVIDER_NAMES[p]);
+  const list =
+    names.length > 1 ? `${names.slice(0, -1).join(", ")} or ${names.at(-1)}` : names[0];
+  return `🔒 You don't have access to ${list}${prefix ? ` (${prefix})` : ""} through WorkCopilot. Ask the owner to grant it if you need it.`;
+}
+
+/** Validates a contact's access list (null = all integrations). */
+export function parseContactAccess(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error("Access must be a list");
+  const known = new Set([...TASKS.map((t) => t.id), CODES_TASK.id]);
+  return [...new Set(value.map(String))].filter((t) => known.has(t));
 }
 
 /** Intersects integration capabilities with a shortcut's allowed ones. */
@@ -170,17 +271,23 @@ export function welcomeText(o: {
   shortcuts: Shortcut[];
   followupMinutes: number;
   first: boolean;
+  /** The contact's access (null = all). Only usable shortcuts are listed. */
+  access?: string[] | null;
 }) {
+  const access = o.access ?? null;
+  const shortcuts = access
+    ? o.shortcuts.filter((s) => s.tasks.some((t) => access.includes(t)))
+    : o.shortcuts;
   const lines = [
     o.first
       ? `👋 Hi${o.name ? ` ${o.name}` : ""}! I'm *WorkCopilot*, your read-only work assistant.`
       : "📋 *WorkCopilot shortcuts*",
     "",
     "Start a message with:",
-    `• *${o.mainPrefix}* — anything, using all connected tools`,
-    ...o.shortcuts.map((s) => `• *${s.prefix}* — ${describeTasks(s.tasks)}`),
+    `• *${o.mainPrefix}* — anything, using ${access ? "the tools you have access to" : "all connected tools"}`,
+    ...shortcuts.map((s) => `• *${s.prefix}* — ${describeTasks(s.tasks)}`),
   ];
-  const example = o.shortcuts.find((s) => s.tasks.length);
+  const example = shortcuts.find((s) => s.tasks.length);
   const provider = example
     ? TASKS.find((t) => t.id === example.tasks[0])?.provider
     : undefined;

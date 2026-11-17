@@ -379,6 +379,17 @@ create trigger settings_audit after update of ai_enabled, activation_prefix, fol
   email_blocked_senders, verification_codes_enabled, verification_senders, shortcuts
   on public.agent_settings for each row execute function public.audit_admin_change();
 
+-- Migration: 202611170003_contact_access.sql
+-- Per-contact integration access. NULL = all integrations (the default, so
+-- existing contacts keep working); an array limits the contact to those tasks.
+alter table public.contacts
+  add column allowed_tasks text[]
+    check (allowed_tasks <@ array[
+      'github:code','github:commits','github:issues','github:pull_requests',
+      'gitlab:code','gitlab:commits','gitlab:issues','gitlab:pull_requests','gitlab:pipelines',
+      'email:read','email:codes'
+    ]::text[]);
+
 commit;
 
 -- After this succeeds, create your Auth user and provision its profiles row
