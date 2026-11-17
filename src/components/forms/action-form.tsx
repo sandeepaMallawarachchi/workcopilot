@@ -78,7 +78,8 @@ export function ActionForm({
         <fieldset disabled={pending} className="contents">
           {children}
         </fieldset>
-        <div aria-live="polite" aria-atomic="true">
+        {/* col-span-full: span every column when the form uses a grid layout */}
+        <div aria-live="polite" aria-atomic="true" className="col-span-full w-full">
           {feedback && (
             <p
               role={feedback.ok ? "status" : "alert"}
