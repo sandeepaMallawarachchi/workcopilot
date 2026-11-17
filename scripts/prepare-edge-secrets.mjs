@@ -22,6 +22,7 @@ const optional = [
   "ALLOW_DEV_GITHUB_TOKEN",
   "GITLAB_TOKEN",
   "GITLAB_BASE_URL",
+  "EMAIL_ENCRYPTION_KEY",
 ];
 const missing = required.filter((name) => !process.env[name]?.trim());
 if (missing.length) {

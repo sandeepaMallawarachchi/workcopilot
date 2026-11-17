@@ -13,6 +13,12 @@ import { supabase, service, configured } from "@/lib/supabase/server";
 import { normalizePhone } from "../../packages/agent-core/src/services/policies";
 import { githubToken } from "../../packages/agent-core/src/services/credentials";
 import { api, record } from "../../packages/agent-core/src/tools/http";
+import { testMailbox } from "../../packages/agent-core/src/email/mailbox";
+import {
+  sealSecret,
+  openSecret,
+} from "../../packages/agent-core/src/security/secret-box";
+import { nodeImapConnect } from "@/lib/email/imap-transport";
 import {
   ALL_CAPABILITIES,
   parseBlockedPatterns,
@@ -254,6 +260,186 @@ export async function saveIntegrationAccess(form: FormData): Promise<FormActionR
   revalidatePath("/integrations", "layout");
   return { ok: true, message: "Agent access rules saved." };
 }
+// ---------------------------------------------------------------------------
+// Email (read-only IMAP)
+// ---------------------------------------------------------------------------
+const HOST_PRESETS: Record<string, string> = {
+  gmail: "imap.gmail.com",
+  hostinger: "imap.hostinger.com",
+  outlook: "outlook.office365.com",
+};
+const emailList = (value: FormDataEntryValue | null, max: number) => {
+  const items = String(value ?? "")
+    .split(/[\n,]+/)
+    .map((v) => v.trim().toLowerCase().replace(/^@/, ""))
+    .filter(Boolean);
+  for (const item of items)
+    if (!/^([\w.+-]+@)?[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(item))
+      throw new Error(`Not an email address or domain: ${item.slice(0, 60)}`);
+  return [...new Set(items)].slice(0, max);
+};
+
+export async function saveMailbox(form: FormData): Promise<FormActionResult> {
+  const { workspace } = await requireAdmin();
+  const parsed = z
+    .object({
+      label: z.string().trim().min(1).max(40),
+      address: z.string().trim().toLowerCase().email().max(254),
+      preset: z.enum(["gmail", "hostinger", "outlook", "custom"]),
+      host: z.string().trim().toLowerCase().max(253).optional(),
+      username: z.string().trim().max(254).optional(),
+      password: z.string().min(1).max(500),
+    })
+    .safeParse(Object.fromEntries(form));
+  if (!parsed.success)
+    return { ok: false, message: "Check the label, email address and password." };
+  const v = parsed.data;
+  const host = v.preset === "custom" ? (v.host ?? "") : HOST_PRESETS[v.preset];
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host))
+    return { ok: false, message: "Enter a valid IMAP server host name." };
+  const box = {
+    id: "",
+    label: v.label,
+    address: v.address,
+    host,
+    port: 993,
+    username: v.username || v.address,
+    password: v.password,
+  };
+  try {
+    await testMailbox(nodeImapConnect, box);
+  } catch (e) {
+    return {
+      ok: false,
+      message:
+        (e instanceof Error && /Sign-in failed|timed out/.test(e.message)
+          ? e.message
+          : "Couldn't connect to the mail server.") +
+        (v.preset === "gmail"
+          ? " Gmail needs an App Password, not your normal password."
+          : ""),
+    };
+  }
+  let ciphertext: string;
+  try {
+    ciphertext = await sealSecret(v.password, process.env.EMAIL_ENCRYPTION_KEY);
+  } catch {
+    return {
+      ok: false,
+      message:
+        "EMAIL_ENCRYPTION_KEY is missing or invalid on the server. Add it, then try again.",
+    };
+  }
+  const db = service();
+  const { data, error } = await db
+    .from("mailboxes")
+    .upsert(
+      {
+        workspace_id: workspace,
+        label: box.label,
+        address: box.address,
+        host: box.host,
+        port: 993,
+        username: box.username,
+        status: "connected",
+        error: null,
+        last_sync_at: new Date().toISOString(),
+      },
+      { onConflict: "workspace_id,address" },
+    )
+    .select("id")
+    .single();
+  checked({ error });
+  checked(await db.from("mailbox_secrets").upsert({ mailbox_id: data!.id, ciphertext }));
+  revalidatePath("/integrations", "layout");
+  return { ok: true, message: `Connected ${box.address} (read-only).` };
+}
+
+export async function removeMailbox(form: FormData): Promise<FormActionResult> {
+  const { workspace } = await requireAdmin();
+  const id = z.uuid().parse(form.get("id"));
+  checked(
+    await service().from("mailboxes").delete().eq("id", id).eq("workspace_id", workspace),
+  );
+  revalidatePath("/integrations", "layout");
+  return { ok: true, message: "Mailbox removed and its password deleted." };
+}
+
+export async function retestMailbox(form: FormData): Promise<FormActionResult> {
+  const { workspace } = await requireAdmin();
+  const id = z.uuid().parse(form.get("id"));
+  const db = service();
+  const { data: box } = await db
+    .from("mailboxes")
+    .select("*")
+    .eq("id", id)
+    .eq("workspace_id", workspace)
+    .single();
+  const { data: secret } = await db
+    .from("mailbox_secrets")
+    .select("ciphertext")
+    .eq("mailbox_id", id)
+    .single();
+  if (!box || !secret) return { ok: false, message: "Mailbox not found." };
+  try {
+    const password = await openSecret(
+      secret.ciphertext,
+      process.env.EMAIL_ENCRYPTION_KEY,
+    );
+    await testMailbox(nodeImapConnect, { ...box, password });
+    checked(
+      await db
+        .from("mailboxes")
+        .update({
+          status: "connected",
+          error: null,
+          last_sync_at: new Date().toISOString(),
+        })
+        .eq("id", id),
+    );
+    revalidatePath("/integrations", "layout");
+    return { ok: true, message: "Connection works." };
+  } catch (e) {
+    const message = e instanceof Error ? e.message.slice(0, 200) : "Connection failed";
+    checked(
+      await db.from("mailboxes").update({ status: "error", error: message }).eq("id", id),
+    );
+    revalidatePath("/integrations", "layout");
+    return { ok: false, message };
+  }
+}
+
+export async function saveEmailRules(form: FormData): Promise<FormActionResult> {
+  const { workspace } = await requireAdmin();
+  let blocked: string[], senders: string[];
+  try {
+    blocked = emailList(form.get("email_blocked_senders"), 50);
+    senders = emailList(form.get("verification_senders"), 30);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Invalid list." };
+  }
+  const enabled = form.get("verification_codes_enabled") === "on";
+  if (enabled && !senders.length)
+    return {
+      ok: false,
+      message:
+        "Add at least one approved sender (e.g. anthropic.com) before turning on codes.",
+    };
+  checked(
+    await service()
+      .from("agent_settings")
+      .update({
+        email_blocked_senders: blocked,
+        verification_codes_enabled: enabled,
+        verification_senders: senders,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("workspace_id", workspace),
+  );
+  revalidatePath("/integrations", "layout");
+  return { ok: true, message: "Email rules saved." };
+}
+
 export async function clearHistory(form: FormData) {
   const { workspace, user } = await requireAdmin();
   const id = idSchema.parse(form.get("id"));

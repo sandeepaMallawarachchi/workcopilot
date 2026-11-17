@@ -19,6 +19,15 @@ import {
   resolveGitLabProjects,
 } from "../../../packages/agent-core/src/tools/gitlab.ts";
 import { Registry } from "../../../packages/agent-core/src/tools/registry.ts";
+import { EmailTools } from "../../../packages/agent-core/src/tools/email.ts";
+import { findVerification } from "../../../packages/agent-core/src/email/mailbox.ts";
+import {
+  asksForVerificationCode,
+  stronglyAsksForVerificationCode,
+  verificationMessages,
+} from "../../../packages/agent-core/src/email/verification.ts";
+import { denoImapConnect } from "../_shared/imap-transport.ts";
+import { loadMailboxes } from "../_shared/mailboxes.ts";
 import { runAgent } from "../../../packages/agent-core/src/services/agent.ts";
 import {
   contextFor,
@@ -98,97 +107,149 @@ Deno.serve(async (req) => {
         );
       };
       typing();
-      const integrations =
-        check(
-          await client
-            .from("integrations")
-            .select("*")
-            .eq("workspace_id", job.workspace_id)
-            .eq("status", "connected"),
-        ) ?? [];
-      const gh = integrations.find((x) => x.provider === "github"),
-        gl = integrations.find((x) => x.provider === "gitlab");
-      const token = gh ? await githubToken(env) : undefined;
-      const known = [...secrets(), ...(token ? [token] : [])];
-      const registry = new Registry(
-        gh
-          ? new GitHub(
-              token!,
-              await resolveGitHubRepositories(gh.allowed_repositories, token!, deadline),
-              fetch,
-              gh.blocked_paths ?? [],
-            )
-          : undefined,
-        gl
-          ? new GitLab(
-              required("GITLAB_TOKEN"),
-              await resolveGitLabProjects(
-                gl.allowed_repositories,
-                required("GITLAB_TOKEN"),
-                env("GITLAB_BASE_URL") || undefined,
-                deadline,
-              ),
-              env("GITLAB_BASE_URL") || undefined,
-              fetch,
-              gl.blocked_paths ?? [],
-            )
-          : undefined,
-        known,
-        // Tolerates a database without the access-policy migration (all allowed).
-        { github: gh?.capabilities ?? undefined, gitlab: gl?.capabilities ?? undefined },
-      );
-      const after = new Date(
-        Math.max(
-          Date.parse(conv.reset_at),
-          Date.now() - settings.context_hours * 3600000,
-        ),
-      ).toISOString();
-      const history = check(
-        await client
-          .from("messages")
-          .select("role,content,conversation_id,created_at")
-          .eq("conversation_id", message.conversation_id)
-          .gte("created_at", after)
-          .lt("created_at", message.created_at)
-          .order("created_at", { ascending: false })
-          .limit(settings.context_messages),
-      );
-      const result = await runAgent({
-        complete: groq(
-          required("GROQ_API_KEY"),
-          settings.groq_model || required("GROQ_MODEL"),
-        ),
-        registry,
-        history: contextFor(
-          (history ?? []).reverse() as HistoryMessage[],
-          message.conversation_id,
-          after,
-          settings.context_messages,
-        ),
-        request: message.content,
-        maxTools: settings.max_tool_calls,
-        language: contact.preferred_language ?? settings.language_behavior,
-        maxLength: settings.response_length,
-        signal: deadline,
-        secrets: known,
-        async onTool(e) {
-          typing();
+      const mailboxes = await loadMailboxes(client, job.workspace_id);
+      // Opt-in verification codes: answered WITHOUT the AI, only from approved
+      // senders, only recent emails. The code is sent but never stored in
+      // history (which is later resent to the AI).
+      let handled = false;
+      if (
+        settings.verification_codes_enabled &&
+        (settings.verification_senders ?? []).length &&
+        mailboxes.length &&
+        asksForVerificationCode(message.content)
+      ) {
+        const found = await findVerification(
+          denoImapConnect,
+          mailboxes,
+          settings.verification_senders,
+          message.content,
+        );
+        if (found || stronglyAsksForVerificationCode(message.content)) {
+          const texts = found
+            ? verificationMessages(found)
+            : {
+                sent: "🔐 No sign-in email from your approved senders arrived in the last 15 minutes. Request a new code, then ask again.",
+                stored: "🔐 No recent sign-in email from approved senders was found.",
+              };
+          check(
+            await client.rpc("save_reply", {
+              p_job: job.id,
+              p_token: job.lease_token,
+              p_reply: texts.stored,
+              p_sources: [],
+              p_parts: splitReply(texts.sent),
+            }),
+          );
+          handled = true;
+        }
+      }
+      if (!handled) {
+        const integrations =
           check(
             await client
-              .from("tool_executions")
-              .insert({ ...e, job_id: job.id, workspace_id: job.workspace_id }),
-          );
-        },
-      });
-      check(
-        await client.rpc("save_reply", {
-          p_job: job.id,
-          p_token: job.lease_token,
-          p_reply: result.reply,
-          p_sources: result.sources,
-          p_parts: splitReply(result.reply),
-        }),
-      );
+              .from("integrations")
+              .select("*")
+              .eq("workspace_id", job.workspace_id)
+              .eq("status", "connected"),
+          ) ?? [];
+        const gh = integrations.find((x) => x.provider === "github"),
+          gl = integrations.find((x) => x.provider === "gitlab");
+        const token = gh ? await githubToken(env) : undefined;
+        const known = [...secrets(), ...(token ? [token] : [])];
+        const registry = new Registry(
+          gh
+            ? new GitHub(
+                token!,
+                await resolveGitHubRepositories(
+                  gh.allowed_repositories,
+                  token!,
+                  deadline,
+                ),
+                fetch,
+                gh.blocked_paths ?? [],
+              )
+            : undefined,
+          gl
+            ? new GitLab(
+                required("GITLAB_TOKEN"),
+                await resolveGitLabProjects(
+                  gl.allowed_repositories,
+                  required("GITLAB_TOKEN"),
+                  env("GITLAB_BASE_URL") || undefined,
+                  deadline,
+                ),
+                env("GITLAB_BASE_URL") || undefined,
+                fetch,
+                gl.blocked_paths ?? [],
+              )
+            : undefined,
+          known,
+          // Tolerates a database without the access-policy migration (all allowed).
+          {
+            github: gh?.capabilities ?? undefined,
+            gitlab: gl?.capabilities ?? undefined,
+          },
+          mailboxes.length
+            ? new EmailTools(
+                mailboxes,
+                denoImapConnect,
+                settings.email_blocked_senders ?? [],
+              )
+            : undefined,
+        );
+        const after = new Date(
+          Math.max(
+            Date.parse(conv.reset_at),
+            Date.now() - settings.context_hours * 3600000,
+          ),
+        ).toISOString();
+        const history = check(
+          await client
+            .from("messages")
+            .select("role,content,conversation_id,created_at")
+            .eq("conversation_id", message.conversation_id)
+            .gte("created_at", after)
+            .lt("created_at", message.created_at)
+            .order("created_at", { ascending: false })
+            .limit(settings.context_messages),
+        );
+        const result = await runAgent({
+          complete: groq(
+            required("GROQ_API_KEY"),
+            settings.groq_model || required("GROQ_MODEL"),
+          ),
+          registry,
+          history: contextFor(
+            (history ?? []).reverse() as HistoryMessage[],
+            message.conversation_id,
+            after,
+            settings.context_messages,
+          ),
+          request: message.content,
+          maxTools: settings.max_tool_calls,
+          language: contact.preferred_language ?? settings.language_behavior,
+          maxLength: settings.response_length,
+          signal: deadline,
+          secrets: known,
+          async onTool(e) {
+            typing();
+            check(
+              await client
+                .from("tool_executions")
+                .insert({ ...e, job_id: job.id, workspace_id: job.workspace_id }),
+            );
+          },
+        });
+        check(
+          await client.rpc("save_reply", {
+            p_job: job.id,
+            p_token: job.lease_token,
+            p_reply: result.reply,
+            p_sources: result.sources,
+            p_parts: splitReply(result.reply),
+          }),
+        );
+      }
     }
     const sent = await deliver(job.id, job.lease_token);
     status = sent === "pending" ? "retry" : sent === "failed" ? "dead" : sent;

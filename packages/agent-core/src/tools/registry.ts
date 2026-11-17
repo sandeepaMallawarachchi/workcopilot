@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ToolDefinition } from "../providers/types.ts";
 import { GitHub } from "./github.ts";
 import { GitLab } from "./gitlab.ts";
+import { EMAIL_TOOLS, type EmailTools } from "./email.ts";
 import { redact } from "../security/sanitization.ts";
 import { capabilityOf } from "../security/access.ts";
 const names = [
@@ -60,7 +61,12 @@ export class Registry {
     private secrets: string[] = [],
     /** Allowed capabilities per provider; omitted = everything allowed. */
     private capabilities: { github?: string[]; gitlab?: string[] } = {},
+    /** Read-only email tools over connected mailboxes, when any exist. */
+    private email?: EmailTools,
   ) {}
+  private isEmailTool(name: string) {
+    return (EMAIL_TOOLS as readonly string[]).includes(name);
+  }
   private permitted(name: string) {
     const provider = name.includes("_github_") ? "github" : "gitlab";
     if (!(provider === "github" ? this.github : this.gitlab)) return false;
@@ -72,7 +78,7 @@ export class Registry {
     // Compact per-tool schemas: only the parameters each tool uses. Every call
     // resends these, so size directly affects Groq tokens-per-minute limits.
     // Full validation still happens in execute() with the strict zod schema.
-    return names
+    const repoTools = names
       .filter((n) => this.permitted(n))
       .map((name) => {
         const target = name.includes("_github_") ? "repository" : "project";
@@ -116,6 +122,7 @@ export class Registry {
           },
         };
       });
+    return [...repoTools, ...(this.email?.definitions() ?? [])];
   }
   /** Allowed repositories/projects, so the model can skip a listing call. */
   scope(): string {
@@ -125,12 +132,29 @@ export class Registry {
     return [
       gh.length ? `GitHub repositories: ${gh.slice(0, 150).join(", ")}` : "",
       gl.length ? `GitLab projects: ${gl.slice(0, 150).join(", ")}` : "",
+      this.email?.mailboxes.length
+        ? `Mailboxes: ${this.email.mailboxes.map((b) => `${b.label} (${b.address})`).join(", ")}`
+        : "",
     ]
       .filter(Boolean)
       .join("\n");
   }
 
+  private finish(result: unknown) {
+    const output = redact(JSON.stringify(result), this.secrets);
+    // Every tool result is resent on later model calls; keep it within Groq's
+    // per-minute token budget.
+    return output.length > 8000
+      ? output.slice(0, 8000) +
+          "\n[Tool result truncated at 8,000 characters; narrow the request or paginate.]"
+      : output;
+  }
+
   async execute(name: string, raw: string, signal?: AbortSignal) {
+    if (this.isEmailTool(name)) {
+      if (!this.email) throw new Error("No mailbox is connected");
+      return this.finish(await this.email.execute(name, raw));
+    }
     if (!names.includes(name as (typeof names)[number]))
       throw new Error("Tool denied by read-only registry");
     if (!this.permitted(name))
@@ -162,13 +186,6 @@ export class Registry {
     if (name.includes("search_") && !a.query) throw new Error("Search query required");
     const provider = name.includes("_github_") ? this.github : this.gitlab;
     if (!provider) throw new Error("Integration is not connected");
-    const result = await provider.run(name, a, signal);
-    const output = redact(JSON.stringify(result), this.secrets);
-    // Every tool result is resent on later model calls; keep it within Groq's
-    // per-minute token budget.
-    return output.length > 8000
-      ? output.slice(0, 8000) +
-          "\n[Tool result truncated at 8,000 characters; narrow the request or paginate.]"
-      : output;
+    return this.finish(await provider.run(name, a, signal));
   }
 }

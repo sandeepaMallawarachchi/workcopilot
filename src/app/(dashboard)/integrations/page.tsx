@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Mail } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { Badge, StatusBadge, ProviderIcon, date, assertData } from "@/components/ui";
 
@@ -33,6 +33,13 @@ export default async function Integrations() {
     .eq("workspace_id", workspace);
   assertData(error);
   const byProvider = new Map((data ?? []).map((row) => [row.provider, row]));
+  // Tolerates a database without the email migration.
+  const { data: mailboxes } = await db
+    .from("mailboxes")
+    .select("status")
+    .eq("workspace_id", workspace);
+  const mailboxCount = mailboxes?.length ?? 0;
+  const mailboxErrors = mailboxes?.filter((m) => m.status === "error").length ?? 0;
 
   return (
     <>
@@ -91,7 +98,47 @@ export default async function Integrations() {
           );
         })}
 
-        {["Gmail", "Google Drive", "Google Calendar"].map((name) => (
+        <Link
+          href="/integrations/email"
+          className="group flex flex-col rounded-2xl border border-border bg-surface p-5 shadow-xs transition hover:border-accent/40 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent motion-reduce:transition-none"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="grid size-13 shrink-0 place-items-center rounded-xl border border-border bg-canvas">
+              <Mail size={26} aria-hidden="true" className="text-accent" />
+            </span>
+            <StatusBadge
+              status={
+                mailboxErrors ? "error" : mailboxCount ? "connected" : "disconnected"
+              }
+            />
+          </div>
+          <h2 className="mt-4 text-sm font-semibold text-ink">Email</h2>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            Gmail, Hostinger or any IMAP inbox. Read-only.
+          </p>
+          <dl className="mt-4 space-y-1.5 border-t border-border pt-3 text-xs">
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted">Mailboxes</dt>
+              <dd className="text-right font-medium text-ink">
+                {mailboxCount ? `${mailboxCount} connected` : "None yet"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted">Sign-in emails</dt>
+              <dd className="text-right font-medium text-ink">Hidden from AI</dd>
+            </div>
+          </dl>
+          <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-accent">
+            Configure
+            <ChevronRight
+              size={14}
+              aria-hidden="true"
+              className="transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
+            />
+          </span>
+        </Link>
+
+        {["Google Drive", "Google Calendar"].map((name) => (
           <article
             key={name}
             className="flex flex-col rounded-2xl border border-dashed border-border bg-surface/50 p-5"
