@@ -44,13 +44,24 @@ export function capabilityOf(tool: string): Capability | null {
   return null;
 }
 
-/** Always blocked regardless of settings (mirrors sanitization.safePath). */
-export const BUILT_IN_BLOCKED = [
-  ".env, .env.*",
-  "*.pem, *.key, *.p12, *.pfx",
-  "id_rsa, id_ed25519",
-  ".npmrc, .netrc",
-  "credentials.*, secrets.*, secret.*, service-account.*",
+/**
+ * Recommended rules for secrets and keys. Nothing is blocked by default: the
+ * owner controls contacts and access, and adds these with one click if wanted.
+ */
+export const RECOMMENDED_BLOCKED = [
+  ".env",
+  ".env.*",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "id_rsa",
+  "id_ed25519",
+  ".npmrc",
+  ".netrc",
+  "credentials.*",
+  "secrets.*",
+  "service-account*",
 ];
 
 /** Suggested extra rules shown in the UI. */

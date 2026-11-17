@@ -302,7 +302,7 @@ describe("real API adapters with mocked networks", () => {
           content: btoa("const email = brevo();"),
         }),
       );
-    const data = await new GitHub("t", ["o/r"], f).run("search_github_code", {
+    const data = await new GitHub("t", ["o/r"], f, [".env"]).run("search_github_code", {
       repository: "o/r",
       query: "brevo",
       page: 1,
@@ -594,17 +594,21 @@ describe("additional grounding and data boundaries", () => {
     expect(result.reply).toContain("token budget");
     expect(complete).not.toHaveBeenCalled();
   });
-  it("excludes sensitive GitLab code-search matches", async () => {
-    const f = fake(200, [
+  it("excludes GitLab code-search matches blocked by the owner's rules", async () => {
+    const hits = [
       { path: ".env", data: "PRIVATE=abc" },
       { path: "src/email.ts", data: "const mailer = brevo" },
-    ]);
-    const result = await new GitLab("t", ["g/p"], "https://gitlab.com", f).run(
-      "search_gitlab_repository",
-      { project: "g/p", query: "brevo", page: 1 },
-    );
-    expect(JSON.stringify(result)).not.toContain("PRIVATE");
-    expect(JSON.stringify(result)).toContain("src/email.ts");
+    ];
+    const search = (blocked: string[]) =>
+      new GitLab("t", ["g/p"], "https://gitlab.com", fake(200, hits), blocked).run(
+        "search_gitlab_repository",
+        { project: "g/p", query: "brevo", page: 1 },
+      );
+    const blocked = JSON.stringify(await search([".env"]));
+    expect(blocked).not.toContain("PRIVATE");
+    expect(blocked).toContain("src/email.ts");
+    // Nothing is blocked unless the owner adds a rule.
+    expect(JSON.stringify(await search([]))).toContain("PRIVATE");
   });
 });
 
@@ -866,7 +870,14 @@ describe("integration access policy", () => {
     const listed = (await gh.run("get_github_tree", { repository: "o/r", page: 1 })) as {
       entries: string;
     };
-    expect(listed.entries).toBe("src/app.ts");
+    // Only the owner's rule ("config/secrets/") applies; .env.local is visible.
+    expect(listed.entries).toBe(".env.local\nsrc/app.ts");
+    const strict = new GitHub("t", ["o/r"], f, ["config/secrets/", ".env.*"]);
+    const strictList = (await strict.run("get_github_tree", {
+      repository: "o/r",
+      page: 1,
+    })) as { entries: string };
+    expect(strictList.entries).toBe("src/app.ts");
     await expect(
       gh.run("get_github_file", {
         repository: "o/r",

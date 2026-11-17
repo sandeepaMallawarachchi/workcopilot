@@ -76,7 +76,7 @@ export default async function Integrations() {
                 <div className="flex justify-between gap-3">
                   <dt className="text-muted">Blocked paths</dt>
                   <dd className="text-right font-medium text-ink">
-                    {blocked ? `Built-in + ${blocked} custom` : "Built-in only"}
+                    {blocked ? `${blocked} rule${blocked === 1 ? "" : "s"}` : "None"}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-3">

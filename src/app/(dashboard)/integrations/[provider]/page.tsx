@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RepoPicker } from "@/components/integrations/repo-picker";
+import { RecommendedRules } from "@/components/integrations/recommended-rules";
 import { githubToken } from "../../../../../packages/agent-core/src/services/credentials";
 import { resolveGitHubRepositories } from "../../../../../packages/agent-core/src/tools/github";
 import { resolveGitLabProjects } from "../../../../../packages/agent-core/src/tools/gitlab";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { integration, saveIntegrationAccess } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms/action-form";
@@ -19,7 +20,7 @@ import {
 } from "@/components/ui";
 import {
   ALL_CAPABILITIES,
-  BUILT_IN_BLOCKED,
+  RECOMMENDED_BLOCKED,
   CAPABILITIES,
   SUGGESTED_BLOCKED,
 } from "../../../../../packages/agent-core/src/security/access";
@@ -226,9 +227,10 @@ export default async function IntegrationSettings({
             <div>
               <Field
                 label="Blocked files and folders"
-                hint="One pattern per line, like .gitignore: *.env, config/secrets/, docs/private/**. A name without a slash matches anywhere; a folder blocks everything inside it. Blocked files are hidden from listings and searches and can never be read."
+                hint="Only what you list here is blocked. One pattern per line, like .gitignore: .env, config/secrets/, docs/private/**. A name without a slash matches anywhere; a folder blocks everything inside it. Blocked files are hidden from listings and searches and can never be read."
               >
                 <Textarea
+                  id={`blocked-paths-${provider}`}
                   name="blocked_paths"
                   defaultValue={blocked.join("\n")}
                   rows={5}
@@ -237,21 +239,10 @@ export default async function IntegrationSettings({
                   placeholder={SUGGESTED_BLOCKED.join("\n")}
                 />
               </Field>
-              <div className="mt-3 rounded-xl border border-border bg-canvas p-3.5">
-                <p className="flex items-center gap-1.5 text-xs font-semibold text-ink">
-                  <Lock size={13} aria-hidden="true" /> Always blocked
-                </p>
-                <ul className="mt-2 flex flex-wrap gap-1.5">
-                  {BUILT_IN_BLOCKED.map((rule) => (
-                    <li
-                      key={rule}
-                      className="rounded-md border border-border bg-surface px-2 py-0.5 font-mono text-[11px] text-muted"
-                    >
-                      {rule}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <RecommendedRules
+                targetId={`blocked-paths-${provider}`}
+                rules={RECOMMENDED_BLOCKED}
+              />
             </div>
 
             <SubmitButton pendingLabel="Saving…">Save access rules</SubmitButton>

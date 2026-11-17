@@ -1,5 +1,4 @@
 import { api, array, record, project, decodeBase64 } from "./http.ts";
-import { safePath } from "../security/sanitization.ts";
 import { pathBlocked } from "../security/access.ts";
 import { ServiceError } from "../services/policies.ts";
 export type ToolArgs = {
@@ -45,8 +44,8 @@ export class GitHub {
     if (name === "get_github_file") {
       if (a.path && pathBlocked(a.path, this.blocked))
         throw new ServiceError("This file is blocked by your access rules");
-      if (!a.path || !safePath(a.path))
-        throw new ServiceError("Sensitive file access denied");
+      // Only the owner's blocked-path rules apply (no built-in file blocks).
+      if (!a.path) throw new ServiceError("File path required");
       const r = record(
         await get(
           `${base}/contents/${a.path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`,
@@ -87,7 +86,6 @@ export class GitHub {
         (x) =>
           x.type === "blob" &&
           Number(x.size) <= 32000 &&
-          safePath(String(x.path)) &&
           !pathBlocked(String(x.path), this.blocked) &&
           !/\.(png|jpg|gif|woff2?|pdf|zip|lock|svg|map)$/i.test(String(x.path)),
       );
@@ -211,10 +209,7 @@ export function formatTree(
   const kept = entries
     .filter(
       (e) =>
-        e.path.startsWith(prefix) &&
-        !NOISE.test(e.path) &&
-        safePath(e.path) &&
-        !pathBlocked(e.path, blocked),
+        e.path.startsWith(prefix) && !NOISE.test(e.path) && !pathBlocked(e.path, blocked),
     )
     .map((e) => e.path + (e.dir ? "/" : ""))
     .sort();
