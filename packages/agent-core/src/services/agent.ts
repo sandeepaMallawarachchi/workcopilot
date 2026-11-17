@@ -37,9 +37,9 @@ export async function runAgent(options: {
     },
     ...o.history.map((m) => ({
       role: m.role,
-      content: redact(m.content ?? "", secrets),
+      content: o.allowSecrets ? (m.content ?? "") : redact(m.content ?? "", secrets),
     })),
-    { role: "user", content: redact(o.request, secrets) },
+    { role: "user", content: o.allowSecrets ? o.request : redact(o.request, secrets) },
   ];
   let count = 0,
     successes = 0;
@@ -96,10 +96,9 @@ export async function runAgent(options: {
             "I have not verified repository evidence for this request. Please specify an authorized repository/project and check that its integration is connected. No repository result can be confirmed yet.",
           sources: [] as string[],
         };
-      const reply = redact(
-        result.content ?? "I could not complete the request. Please clarify the project.",
-        secrets,
-      ).slice(0, o.maxLength);
+      const text =
+        result.content ?? "I could not complete the request. Please clarify the project.";
+      const reply = (o.allowSecrets ? text : redact(text, secrets)).slice(0, o.maxLength);
       return { reply, sources: [...sources] };
     }
     messages.push({

@@ -929,3 +929,24 @@ describe("per-contact secrets permission", () => {
     expect(prompt).not.toContain("Never reveal credentials");
   });
 });
+
+describe("unmasked output for contacts allowed to view secrets", () => {
+  it("masks .env values by default and returns them unmasked when permitted", async () => {
+    const env = "DATABASE_URL=postgres://u:p@h/db\nAPI_KEY=abc123secret";
+    const f = () =>
+      fake(200, {
+        path: ".env",
+        encoding: "base64",
+        size: env.length,
+        content: btoa(env),
+      });
+    const args = JSON.stringify({ repository: "o/r", path: ".env" });
+    const masked = new Registry(new GitHub("t", ["o/r"], f()));
+    expect(await masked.execute("get_github_file", args)).not.toContain("abc123secret");
+    const open = new Registry(new GitHub("t", ["o/r"], f()));
+    open.unmasked = true;
+    expect(await open.execute("get_github_file", args)).toContain("abc123secret");
+    expect(splitReply(env, undefined, false)[0]).toContain("abc123secret");
+    expect(splitReply(env)[0]).not.toContain("abc123secret");
+  });
+});

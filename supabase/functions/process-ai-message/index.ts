@@ -135,6 +135,8 @@ Deno.serve(async (req) => {
               access,
             })
           : null;
+      // Contacts allowed to view secrets get unmasked values (owner opt-in).
+      const allowSecrets = contact.can_view_secrets === true;
       const reply = async (
         stored: string,
         sent: string | null,
@@ -146,7 +148,10 @@ Deno.serve(async (req) => {
             p_token: job.lease_token,
             p_reply: stored,
             p_sources: sources,
-            p_parts: [...(welcome ? [welcome] : []), ...(sent ? splitReply(sent) : [])],
+            p_parts: [
+              ...(welcome ? [welcome] : []),
+              ...(sent ? splitReply(sent, undefined, !allowSecrets) : []),
+            ],
           }),
         );
         if (welcome)
@@ -262,8 +267,6 @@ Deno.serve(async (req) => {
               ? undefined
               : integrations.find((x) => x.provider === "gitlab");
         const token = gh ? await githubToken(env) : undefined;
-        // Contacts allowed to view secrets get unmasked values (owner opt-in).
-        const allowSecrets = contact.can_view_secrets === true;
         const known = allowSecrets ? [] : [...secrets(), ...(token ? [token] : [])];
         const registry = new Registry(
           gh
@@ -306,6 +309,7 @@ Deno.serve(async (req) => {
               )
             : undefined,
         );
+        registry.unmasked = allowSecrets;
         const after = new Date(
           Math.max(
             Date.parse(conv.reset_at),

@@ -140,8 +140,11 @@ export class Registry {
       .join("\n");
   }
 
+  /** Owner opt-in ("View secrets & full files"): return tool output unmasked. */
+  unmasked = false;
   private finish(result: unknown) {
-    const output = redact(JSON.stringify(result), this.secrets);
+    const raw = JSON.stringify(result);
+    const output = this.unmasked ? raw : redact(raw, this.secrets);
     // Every tool result is resent on later model calls; keep it within Groq's
     // per-minute token budget.
     return output.length > 8000
