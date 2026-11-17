@@ -300,3 +300,57 @@ export function welcomeText(o: {
   lines.push(`Send *${o.mainPrefix} help* anytime to see this again.`);
   return lines.join("\n");
 }
+
+/**
+ * Per-contact resource limits. A missing key means "everything the integration
+ * allows"; an empty list means "none".
+ */
+export type ContactResources = {
+  github?: string[];
+  gitlab?: string[];
+  mailboxes?: string[];
+};
+
+const REPO_PATH = /^[\w.-]+(?:\/[\w.-]+)+$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Reads stored resources defensively (bad entries are dropped). */
+export function storedResources(value: unknown): ContactResources {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const v = value as Record<string, unknown>;
+  const list = (x: unknown, ok: RegExp) =>
+    Array.isArray(x)
+      ? [...new Set(x.map(String).filter((s) => ok.test(s)))].slice(0, 300)
+      : undefined;
+  const out: ContactResources = {};
+  const gh = list(v.github, REPO_PATH),
+    gl = list(v.gitlab, REPO_PATH),
+    mb = list(v.mailboxes, UUID);
+  if (gh) out.github = gh;
+  if (gl) out.gitlab = gl;
+  if (mb) out.mailboxes = mb;
+  return out;
+}
+
+/** An empty selection removes that source from the contact's scope. */
+export function limitScope(scope: Scope, res: ContactResources): Scope {
+  return {
+    ...scope,
+    all: scope.all && !res.github && !res.gitlab && !res.mailboxes,
+    github: res.github && !res.github.length ? null : scope.github,
+    gitlab: res.gitlab && !res.gitlab.length ? null : scope.gitlab,
+    email: res.mailboxes && !res.mailboxes.length ? false : scope.email,
+    codes: res.mailboxes && !res.mailboxes.length ? false : scope.codes,
+  };
+}
+
+/** Narrows an integration's list to the contact's selection (missing = all). */
+export function narrow<T>(
+  items: T[],
+  selected: string[] | undefined,
+  key: (item: T) => string,
+) {
+  if (!selected) return items;
+  const set = new Set(selected.map((s) => s.toLowerCase()));
+  return items.filter((item) => set.has(key(item).toLowerCase()));
+}

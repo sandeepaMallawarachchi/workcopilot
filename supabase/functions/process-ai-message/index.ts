@@ -40,6 +40,9 @@ import {
   isHelpRequest,
   scopeFor,
   storedShortcuts,
+  storedResources,
+  limitScope,
+  narrow,
   welcomeText,
 } from "../../../packages/agent-core/src/services/shortcuts.ts";
 import { redact } from "../../../packages/agent-core/src/security/sanitization.ts";
@@ -121,7 +124,10 @@ Deno.serve(async (req) => {
       // Per-contact access (null = all integrations) ∩ shortcut scope.
       const access: string[] | null = contact.allowed_tasks ?? null;
       const shortcutScope = scopeFor(message.shortcut, shortcuts);
-      const scope = combineScopes(shortcutScope, scopeFromTasks(access));
+      // Per-contact repository/project/mailbox selection (missing = all).
+      const resources = storedResources(contact.resources);
+      const contactScope = limitScope(scopeFromTasks(access), resources);
+      const scope = combineScopes(shortcutScope, contactScope);
       // One-time welcome listing the prefixes, sent before a new contact's first
       // reply. Kept out of history (p_reply) so it never costs tokens later.
       const welcome =
@@ -162,7 +168,13 @@ Deno.serve(async (req) => {
               .eq("id", contact.id),
           );
       };
-      const mailboxes = scope.email ? await loadMailboxes(client, job.workspace_id) : [];
+      const mailboxes = scope.email
+        ? narrow(
+            await loadMailboxes(client, job.workspace_id),
+            resources.mailboxes,
+            (b) => b.id,
+          )
+        : [];
       let handled = false;
       // No access: answer clearly without the AI instead of a confusing reply.
       // 1) A shortcut whose services this contact cannot use at all.
@@ -187,9 +199,7 @@ Deno.serve(async (req) => {
         handled = true;
       }
       // 2) A request that names a service the contact has no access to.
-      const denied = handled
-        ? []
-        : deniedProviders(message.content, scopeFromTasks(access));
+      const denied = handled ? [] : deniedProviders(message.content, contactScope);
       if (!handled && denied.length && !isHelpRequest(message.content)) {
         const text = noAccessText(denied);
         await reply(text, text);
@@ -272,10 +282,14 @@ Deno.serve(async (req) => {
           gh
             ? new GitHub(
                 token!,
-                await resolveGitHubRepositories(
-                  gh.allowed_repositories,
-                  token!,
-                  deadline,
+                narrow(
+                  await resolveGitHubRepositories(
+                    gh.allowed_repositories,
+                    token!,
+                    deadline,
+                  ),
+                  resources.github,
+                  (r) => r,
                 ),
                 fetch,
                 gh.blocked_paths ?? [],
@@ -284,11 +298,15 @@ Deno.serve(async (req) => {
           gl
             ? new GitLab(
                 required("GITLAB_TOKEN"),
-                await resolveGitLabProjects(
-                  gl.allowed_repositories,
-                  required("GITLAB_TOKEN"),
-                  env("GITLAB_BASE_URL") || undefined,
-                  deadline,
+                narrow(
+                  await resolveGitLabProjects(
+                    gl.allowed_repositories,
+                    required("GITLAB_TOKEN"),
+                    env("GITLAB_BASE_URL") || undefined,
+                    deadline,
+                  ),
+                  resources.gitlab,
+                  (p) => p,
                 ),
                 env("GITLAB_BASE_URL") || undefined,
                 fetch,

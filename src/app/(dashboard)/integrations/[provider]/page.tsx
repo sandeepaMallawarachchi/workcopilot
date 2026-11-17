@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RepoPicker } from "@/components/integrations/repo-picker";
+import { availableRepositories } from "@/lib/integrations/available";
 import { RecommendedRules } from "@/components/integrations/recommended-rules";
-import { githubToken } from "../../../../../packages/agent-core/src/services/credentials";
-import { resolveGitHubRepositories } from "../../../../../packages/agent-core/src/tools/github";
-import { resolveGitLabProjects } from "../../../../../packages/agent-core/src/tools/gitlab";
 import { ArrowLeft } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { integration, saveIntegrationAccess } from "@/app/actions";
@@ -43,44 +41,6 @@ const meta = {
       "Read any GitLab project the token's account is a member of, including ones you join later. The list below is ignored while this is on.",
   },
 } as const;
-
-/**
- * Everything the server credentials can read, for the picker. Failures are
- * non-fatal: the picker still accepts typed paths.
- */
-async function availableRepositories(
-  provider: "github" | "gitlab",
-): Promise<{ options: string[]; error?: string }> {
-  try {
-    const signal = AbortSignal.timeout(8000);
-    if (provider === "github") {
-      const token = await githubToken((k) => process.env[k]);
-      return { options: (await resolveGitHubRepositories(["*"], token, signal)).sort() };
-    }
-    const token = process.env.GITLAB_TOKEN?.trim();
-    if (!token)
-      return {
-        options: [],
-        error: "GITLAB_TOKEN is not set on the server, so the list can't be loaded.",
-      };
-    return {
-      options: (
-        await resolveGitLabProjects(
-          ["*"],
-          token,
-          process.env.GITLAB_BASE_URL || undefined,
-          signal,
-        )
-      ).sort(),
-    };
-  } catch {
-    return {
-      options: [],
-      error:
-        "Couldn't load the list from the provider. Check the server credentials; you can still type paths.",
-    };
-  }
-}
 
 export default async function IntegrationSettings({
   params,

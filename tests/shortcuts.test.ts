@@ -126,3 +126,31 @@ describe("per-contact access", () => {
     expect(text).toContain("the tools you have access to");
   });
 });
+
+describe("per-contact repositories and mailboxes", () => {
+  it("reads stored selections defensively and limits scope", async () => {
+    const { storedResources, limitScope, narrow, FULL_SCOPE } =
+      await import("../packages/agent-core/src/services/shortcuts");
+    const res = storedResources({
+      github: ["o/a", "bad path", "o/a"],
+      mailboxes: ["not-a-uuid", "11111111-2222-3333-4444-555555555555"],
+    });
+    expect(res).toEqual({
+      github: ["o/a"],
+      mailboxes: ["11111111-2222-3333-4444-555555555555"],
+    });
+    expect(storedResources(null)).toEqual({});
+    // Missing = all; empty = none.
+    expect(limitScope(FULL_SCOPE, {}).all).toBe(true);
+    expect(limitScope(FULL_SCOPE, { github: [] })).toMatchObject({
+      github: null,
+      all: false,
+    });
+    expect(limitScope(FULL_SCOPE, { mailboxes: [] })).toMatchObject({
+      email: false,
+      codes: false,
+    });
+    expect(narrow(["o/a", "o/b"], ["O/A"], (r) => r)).toEqual(["o/a"]);
+    expect(narrow(["o/a", "o/b"], undefined, (r) => r)).toEqual(["o/a", "o/b"]);
+  });
+});

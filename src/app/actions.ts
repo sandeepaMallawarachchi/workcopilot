@@ -20,6 +20,8 @@ import {
 } from "../../packages/agent-core/src/security/secret-box";
 import { nodeImapConnect } from "@/lib/email/imap-transport";
 import {
+  type ContactResources,
+  storedResources,
   parseContactAccess,
   parseShortcuts,
   storedShortcuts,
@@ -113,27 +115,56 @@ export async function updateContactAccess(form: FormData): Promise<FormActionRes
       return { ok: false, message: "Invalid access selection." };
     }
   }
+  // Repository / project / mailbox selection. Only sections the modal sent
+  // are changed; hidden sections keep their previous value.
+  const db = service();
+  const { data: current } = await db
+    .from("contacts")
+    .select("resources")
+    .eq("id", id)
+    .eq("workspace_id", workspace)
+    .single();
+  const resources: ContactResources = storedResources(current?.resources);
+  const pathList = (key: string) =>
+    String(form.get(key) ?? "")
+      .split(/[\n,]+/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+  for (const provider of ["github", "gitlab"] as const) {
+    const mode = form.get(`${provider}_mode`);
+    if (mode === "all") delete resources[provider];
+    if (mode === "selected") {
+      const list = pathList(`${provider}_repos`);
+      if (list.some((r) => !/^[\w.-]+(?:\/[\w.-]+)+$/.test(r)))
+        return { ok: false, message: "Check the selected repository paths." };
+      resources[provider] = [...new Set(list)].slice(0, 300);
+    }
+  }
+  const mailboxMode = form.get("mailbox_mode");
+  if (mailboxMode === "all") delete resources.mailboxes;
+  if (mailboxMode === "selected") {
+    const ids = form.getAll("mailbox_ids").map(String);
+    const { data: owned } = await db
+      .from("mailboxes")
+      .select("id")
+      .eq("workspace_id", workspace)
+      .in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+    resources.mailboxes = (owned ?? []).map((m) => m.id);
+  }
   checked(
-    await service()
+    await db
       .from("contacts")
       .update({
         allowed_tasks: allowed,
         can_view_secrets: form.get("can_view_secrets") === "on",
+        resources,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
       .eq("workspace_id", workspace),
   );
-  revalidatePath("/contacts");
-  return {
-    ok: true,
-    message:
-      allowed === null
-        ? "Access set to all integrations."
-        : allowed.length
-          ? "Access updated."
-          : "Access removed: this contact can only chat, without integrations.",
-  };
+  revalidatePath("/contacts", "layout");
+  return { ok: true, message: "Access saved." };
 }
 export async function saveSettings(form: FormData) {
   const { workspace } = await requireAdmin();

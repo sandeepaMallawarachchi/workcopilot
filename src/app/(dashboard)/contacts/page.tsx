@@ -2,12 +2,9 @@ import { requireAdmin } from "@/lib/auth";
 import { updateContact } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/forms/action-form";
 import { Empty, Badge, assertData, WhatsAppIcon } from "@/components/ui";
-import { ContactAccess } from "@/components/contacts/contact-access";
+import { AccessSummary } from "@/components/contacts/contact-access";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
-import {
-  CODES_TASK,
-  availableTasks,
-} from "../../../../packages/agent-core/src/services/shortcuts";
+import { storedResources } from "../../../../packages/agent-core/src/services/shortcuts";
 
 export default async function Contacts() {
   const { db, workspace } = await requireAdmin();
@@ -22,33 +19,12 @@ export default async function Contacts() {
     .select("contact_id,messages(count)")
     .eq("workspace_id", workspace);
   assertData(usage.error);
-  // Tasks that exist right now, so access can only be granted to real things.
-  const [{ data: integrations }, { data: mailboxes }, { data: settings }] =
-    await Promise.all([
-      db
-        .from("integrations")
-        .select("provider,status,capabilities")
-        .eq("workspace_id", workspace),
-      db.from("mailboxes").select("id").eq("workspace_id", workspace),
-      db
-        .from("agent_settings")
-        .select("verification_codes_enabled")
-        .eq("workspace_id", workspace)
-        .single(),
-    ]);
-  const caps = (provider: string) => {
-    const row = integrations?.find(
-      (i) => i.provider === provider && i.status === "connected",
-    );
-    return row
-      ? (row.capabilities ?? ["code", "commits", "issues", "pull_requests", "pipelines"])
-      : null;
-  };
-  const hasMail = (mailboxes?.length ?? 0) > 0;
-  const tasks = [
-    ...availableTasks({ github: caps("github"), gitlab: caps("gitlab"), email: hasMail }),
-    ...(hasMail && settings?.verification_codes_enabled ? [CODES_TASK] : []),
-  ];
+  // Mailbox names for the access summary chips.
+  const { data: mailboxes } = await db
+    .from("mailboxes")
+    .select("id,label,address")
+    .eq("workspace_id", workspace)
+    .order("created_at");
   const messageCount = (id: string) =>
     usage.data?.find((item) => item.contact_id === id)?.messages?.[0]?.count ?? 0;
   return (
@@ -139,12 +115,13 @@ export default async function Contacts() {
                   </div>
                 </dl>
 
-                <ContactAccess
+                <AccessSummary
                   contactId={contact.id}
                   name={contact.display_name}
                   access={contact.allowed_tasks ?? null}
-                  available={tasks}
                   canViewSecrets={contact.can_view_secrets === true}
+                  resources={storedResources(contact.resources)}
+                  mailboxes={mailboxes ?? []}
                 />
 
                 <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-4">
