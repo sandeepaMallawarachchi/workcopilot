@@ -14,6 +14,8 @@ export type ConversationJob = {
 export type ConversationMessageData = {
   id: string;
   role: "user" | "assistant";
+  /** A transcribed WhatsApp voice note. */
+  voice?: boolean;
   content: string;
   created_at: string;
   sources: string[];

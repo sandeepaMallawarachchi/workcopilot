@@ -17,6 +17,11 @@ import {
 } from "../../../packages/agent-core/src/tools/gitlab.ts";
 import { Registry } from "../../../packages/agent-core/src/tools/registry.ts";
 import { EmailTools } from "../../../packages/agent-core/src/tools/email.ts";
+import {
+  downloadWhatsAppMedia,
+  heardLine,
+  transcribe,
+} from "../../../packages/agent-core/src/services/voice.ts";
 import { findVerification } from "../../../packages/agent-core/src/email/mailbox.ts";
 import {
   asksForVerificationCode,
@@ -121,6 +126,27 @@ Deno.serve(async (req) => {
         );
       };
       typing();
+      // Voice note: download from Meta, transcribe (Groq Whisper), then treat the
+      // transcript as the request. The audio itself is never stored.
+      let heard: string | null = null;
+      if (message.voice && message.media_id) {
+        const audio = await downloadWhatsAppMedia(
+          {
+            token: required("WHATSAPP_ACCESS_TOKEN"),
+            version: required("WHATSAPP_GRAPH_API_VERSION"),
+          },
+          message.media_id,
+        );
+        const text = redact(await transcribe(required("GROQ_API_KEY"), audio), secrets());
+        check(
+          await client
+            .from("messages")
+            .update({ content: text || "🎙️ (no speech detected)", media_id: null })
+            .eq("id", message.id),
+        );
+        message.content = text;
+        heard = text || null;
+      }
       // Shortcut scope (e.g. "@github"): only the chosen tools are loaded and
       // offered to the model, which saves tokens and keeps answers on topic.
       const shortcuts = storedShortcuts(settings.shortcuts);
@@ -159,7 +185,13 @@ Deno.serve(async (req) => {
             p_sources: sources,
             p_parts: [
               ...(welcome ? [welcome] : []),
-              ...(sent ? splitReply(sent, undefined, !allowSecrets) : []),
+              ...(sent
+                ? splitReply(
+                    heard ? `${heardLine(heard)}\n\n${sent}` : sent,
+                    undefined,
+                    !allowSecrets,
+                  )
+                : []),
             ],
           }),
         );
@@ -179,6 +211,12 @@ Deno.serve(async (req) => {
           )
         : [];
       let handled = false;
+      if (message.voice && !message.content.trim()) {
+        const text =
+          "🎙️ I couldn't make out any speech in that voice note. Please try again or type your message.";
+        await reply(text, text);
+        handled = true;
+      }
       // No access: answer clearly without the AI instead of a confusing reply.
       // 1) A shortcut whose services this contact cannot use at all.
       const usedShortcut = message.shortcut

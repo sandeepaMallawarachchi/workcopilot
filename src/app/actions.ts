@@ -157,6 +157,7 @@ export async function updateContactAccess(form: FormData): Promise<FormActionRes
       .update({
         allowed_tasks: allowed,
         can_view_secrets: form.get("can_view_secrets") === "on",
+        can_send_voice: form.get("can_send_voice") !== "off",
         resources,
         updated_at: new Date().toISOString(),
       })
@@ -172,6 +173,7 @@ export async function saveSettings(form: FormData) {
     .object({
       activation_prefix: z.string().regex(/^@[a-zA-Z]{1,12}$/),
       followup_minutes: z.coerce.number().int().min(0).max(60),
+      voice_mode: z.enum(["off", "followup", "always"]),
       groq_model: z.string().trim().max(100),
       max_tool_calls: z.coerce.number().int().min(1).max(10),
       language_behavior: z.enum(["match", "English", "Sinhala", "Singlish"]),

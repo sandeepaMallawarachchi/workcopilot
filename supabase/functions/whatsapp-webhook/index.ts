@@ -14,6 +14,7 @@ Deno.serve(
           p_phone: m.phone,
           p_text: redact(m.text, secrets()),
           p_sent_at: m.sentAt,
+          ...(m.mediaId ? { p_media_id: m.mediaId } : {}),
         }),
       );
     },

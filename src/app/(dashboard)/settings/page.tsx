@@ -125,6 +125,21 @@ export default async function Settings() {
                   defaultValue={settings.followup_minutes ?? 10}
                 />
               </Field>
+              <Field
+                label="Voice notes"
+                hint="Voice notes are transcribed and answered like typed messages. You can't say “@ai”, so choose when they count. The audio is never stored."
+              >
+                <Select
+                  name="voice_mode"
+                  defaultValue={settings.voice_mode ?? "followup"}
+                >
+                  <option value="followup">
+                    During a conversation (follow-up window)
+                  </option>
+                  <option value="always">Always (treated as the main prefix)</option>
+                  <option value="off">Off</option>
+                </Select>
+              </Field>
               <Field label="Language behavior">
                 <Select
                   name="language_behavior"

@@ -1,4 +1,4 @@
-import { ArrowUpRight, ChevronDown } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Mic } from "lucide-react";
 import { date, StatusBadge } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/conversations/markdown";
@@ -72,6 +72,11 @@ export function ConversationMessage({ message }: { message: ConversationMessageD
             : "rounded-br-md border-accent/10 bg-accent-soft/70 whitespace-pre-wrap",
         )}
       >
+        {!assistant && message.voice && (
+          <span className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-accent">
+            <Mic size={12} aria-hidden="true" /> Voice note · transcribed
+          </span>
+        )}
         {assistant ? <Markdown>{message.content}</Markdown> : message.content}
         {sources.length > 0 && (
           <ul className="mt-2 space-y-0.5 border-t border-accent/10 pt-1.5">

@@ -26,6 +26,14 @@ import {
 const ALL_TASKS = [...TASKS, CODES_TASK];
 
 /** Per-contact opt-in shown as its own group in the access dropdown. */
+/** Per-contact permission to send voice notes (on by default). */
+const VOICE_TASK: SelectTask = {
+  id: "voice:notes",
+  provider: "voice",
+  capability: "notes",
+  label: "Send voice notes",
+};
+
 const SECRETS_TASK: SelectTask = {
   id: "secrets:view",
   provider: "secrets",
@@ -288,6 +296,7 @@ export function AccessEditor({
   access,
   available,
   canViewSecrets = false,
+  canSendVoice = true,
   resources = {},
   options,
 }: {
@@ -297,6 +306,7 @@ export function AccessEditor({
   /** Tasks that exist right now (connected integrations, enabled features). */
   available: Task[];
   canViewSecrets?: boolean;
+  canSendVoice?: boolean;
   resources?: ContactResources;
   options: Options;
 }) {
@@ -304,12 +314,18 @@ export function AccessEditor({
   const everything = available.map((t) => t.id);
   const [tasks, setTasks] = useState<string[]>(access ?? everything);
   const [secrets, setSecrets] = useState(canViewSecrets);
+  const [voice, setVoice] = useState(canSendVoice);
   const [mailboxMode, setMailboxMode] = useState<"all" | "selected">(
     resources.mailboxes ? "selected" : "all",
   );
   // With "All integrations" on, every integration task is shown ticked (and
   // locked); the separate Secrets checkbox stays editable and off by default.
-  const shown = [...(all ? everything : tasks), ...(secrets ? [SECRETS_TASK.id] : [])];
+  const shown = [
+    ...(all ? everything : tasks),
+    ...(voice ? [VOICE_TASK.id] : []),
+    ...(secrets ? [SECRETS_TASK.id] : []),
+  ];
+  const extra = [VOICE_TASK.id, SECRETS_TASK.id];
   const uses = (p: TaskProvider) => all || tasks.some((t) => t.startsWith(`${p}:`));
 
   return (
@@ -322,6 +338,7 @@ export function AccessEditor({
       <input type="hidden" name="tasks" value={JSON.stringify(tasks)} />
       {all && <input type="hidden" name="all" value="on" />}
       {secrets && <input type="hidden" name="can_view_secrets" value="on" />}
+      <input type="hidden" name="can_send_voice" value={voice ? "on" : "off"} />
 
       <Section
         icon={<ShieldCheck size={15} aria-hidden="true" className="text-accent" />}
@@ -351,9 +368,10 @@ export function AccessEditor({
           value={shown}
           onChange={(next) => {
             setSecrets(next.includes(SECRETS_TASK.id));
-            if (!all) setTasks(next.filter((id) => id !== SECRETS_TASK.id));
+            setVoice(next.includes(VOICE_TASK.id));
+            if (!all) setTasks(next.filter((id) => !extra.includes(id)));
           }}
-          available={[...available, SECRETS_TASK]}
+          available={[...available, VOICE_TASK, SECRETS_TASK]}
           locked={all ? everything : []}
           allowEmpty
           emptyLabel="No integrations (chat only)"

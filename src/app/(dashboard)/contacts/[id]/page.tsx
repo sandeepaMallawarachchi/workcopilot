@@ -84,6 +84,7 @@ export default async function ManageContactAccess({
           access={access}
           available={available}
           canViewSecrets={canViewSecrets}
+          canSendVoice={contact.can_send_voice !== false}
           resources={resources}
           options={options}
         />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, KeyRound, Lock, Mail } from "lucide-react";
+import { Check, ChevronDown, KeyRound, Lock, Mail, Mic } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { SiGithub, SiGitlab } from "react-icons/si";
 import { cn } from "@/lib/utils";
@@ -21,11 +21,18 @@ export const PROVIDER_ICONS: Record<TaskProvider, React.ReactNode> = {
 const GROUP_ICONS: Record<string, React.ReactNode> = {
   ...PROVIDER_ICONS,
   secrets: <KeyRound size={14} aria-hidden="true" className="text-danger" />,
+  voice: <Mic size={14} aria-hidden="true" className="text-accent" />,
 };
-const GROUP_NAMES: Record<string, string> = { ...PROVIDER_NAMES, secrets: "Secrets" };
+const GROUP_NAMES: Record<string, string> = {
+  ...PROVIDER_NAMES,
+  voice: "Voice",
+  secrets: "Secrets",
+};
 
 /** A selectable task; `provider` is the group it is listed under. */
-export type SelectTask = Omit<Task, "provider"> & { provider: TaskProvider | "secrets" };
+export type SelectTask = Omit<Task, "provider"> & {
+  provider: TaskProvider | "voice" | "secrets";
+};
 
 /** Multi-select of agent tasks, grouped by provider. Lists only `available` tasks. */
 export function TaskSelect({
