@@ -41,7 +41,7 @@ export default async function Conversations() {
         </Panel>
       ) : (
         <div className="space-y-3">
-          {result.data.map((conversation) => {
+          {byLatestActivity(result.data, history.data ?? []).map((conversation) => {
             const messages =
               history.data?.filter((m) => m.conversation_id === conversation.id) ?? [];
             const latest = messages[0]; // newest first
@@ -143,4 +143,18 @@ export default async function Conversations() {
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+/** Most recently active conversation first (latest message, else creation time). */
+function byLatestActivity<C extends { id: string; created_at: string }>(
+  conversations: C[],
+  messages: { conversation_id: string; created_at: string }[],
+) {
+  const latest = new Map<string, string>();
+  for (const m of messages) {
+    const current = latest.get(m.conversation_id);
+    if (!current || m.created_at > current) latest.set(m.conversation_id, m.created_at);
+  }
+  const at = (c: C) => Date.parse(latest.get(c.id) ?? c.created_at);
+  return [...conversations].sort((a, b) => at(b) - at(a));
 }
