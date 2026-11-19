@@ -129,6 +129,52 @@ Deno.serve(async (req) => {
       // Voice note: download from Meta, transcribe (Groq Whisper), then treat the
       // transcript as the request. The audio itself is never stored.
       let heard: string | null = null;
+      // Names Whisper should spell correctly: repositories/projects this contact
+      // can reach, mailbox labels and shortcut words. Best effort only.
+      const voiceVocabulary = async () => {
+        const words: string[] = storedShortcuts(settings.shortcuts).map((x) =>
+          x.prefix.replace(/^@/, ""),
+        );
+        try {
+          const contactRes = storedResources(contact.resources);
+          const { data: rows } = await client
+            .from("integrations")
+            .select("provider,status,allowed_repositories")
+            .eq("workspace_id", job.workspace_id)
+            .eq("status", "connected");
+          for (const row of rows ?? []) {
+            let repos: string[] = row.allowed_repositories ?? [];
+            const selected = contactRes[row.provider as "github" | "gitlab"];
+            if (selected) repos = selected;
+            else if (repos.includes("*") && row.provider === "github")
+              repos = await resolveGitHubRepositories(
+                ["*"],
+                await githubToken(env),
+                deadline,
+              );
+            else if (
+              repos.includes("*") &&
+              row.provider === "gitlab" &&
+              env("GITLAB_TOKEN")
+            )
+              repos = await resolveGitLabProjects(
+                ["*"],
+                env("GITLAB_TOKEN")!,
+                env("GITLAB_BASE_URL") || undefined,
+                deadline,
+              );
+            words.push(...repos.filter((r) => r !== "*").map((r) => r.split("/").pop()!));
+          }
+          const { data: boxes } = await client
+            .from("mailboxes")
+            .select("label")
+            .eq("workspace_id", job.workspace_id);
+          words.push(...(boxes ?? []).map((b) => b.label));
+        } catch {
+          // Vocabulary is an accuracy hint; transcription works without it.
+        }
+        return [...new Set(words)].slice(0, 60);
+      };
       if (message.voice && message.media_id) {
         const audio = await downloadWhatsAppMedia(
           {
@@ -137,7 +183,13 @@ Deno.serve(async (req) => {
           },
           message.media_id,
         );
-        const text = redact(await transcribe(required("GROQ_API_KEY"), audio), secrets());
+        const text = redact(
+          await transcribe(required("GROQ_API_KEY"), audio, fetch, {
+            language: contact.preferred_language ?? settings.language_behavior,
+            vocabulary: await voiceVocabulary(),
+          }),
+          secrets(),
+        );
         check(
           await client
             .from("messages")

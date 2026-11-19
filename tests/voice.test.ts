@@ -130,3 +130,81 @@ describe("voice notes", () => {
     expect(accept.mock.calls[0][0]).toMatchObject({ mediaId: "media-9", text: "" });
   });
 });
+
+describe("transcription tuning for English, Sinhala and Singlish", () => {
+  const audio = { bytes: new Uint8Array([1]), mimeType: "audio/ogg; codecs=opus" };
+  const call = (f: ReturnType<typeof vi.fn>, i: number) =>
+    f.mock.calls[i][1].body as FormData;
+
+  it("uses large-v3 with Sinhala for Sinhala/Singlish speakers", async () => {
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(json({ text: "මගේ last commit එක", language: "sinhala" }));
+    const text = await transcribe("k", audio, f, {
+      language: "Singlish",
+      vocabulary: ["projectlens"],
+    });
+    expect(text).toBe("මගේ last commit එක");
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(call(f, 0).get("model")).toBe("whisper-large-v3");
+    expect(call(f, 0).get("language")).toBe("si");
+    expect(String(call(f, 0).get("prompt"))).toContain("projectlens");
+  });
+  it("re-runs as Sinhala when Whisper mislabels Sinhala speech", async () => {
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(json({ text: "मगे कमिट", language: "hindi" }))
+      .mockResolvedValueOnce(json({ text: "මගේ commit එක", language: "sinhala" }));
+    expect(await transcribe("k", audio, f, { language: "match" })).toBe("මගේ commit එක");
+    expect(call(f, 0).get("model")).toBe("whisper-large-v3-turbo");
+    expect(call(f, 1).get("language")).toBe("si");
+  });
+  it("retries unsure English with the full model and keeps the better result", async () => {
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        json({
+          text: "lates comet",
+          language: "english",
+          segments: [{ text: "lates comet", avg_logprob: -1.2 }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        json({
+          text: "latest commit",
+          language: "english",
+          segments: [{ text: "latest commit", avg_logprob: -0.2 }],
+        }),
+      );
+    expect(await transcribe("k", audio, f, { language: "English" })).toBe(
+      "latest commit",
+    );
+    expect(call(f, 1).get("model")).toBe("whisper-large-v3");
+  });
+  it("drops silence hallucinations and low-confidence noise", async () => {
+    const silent = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(json({ text: "Thank you.", language: "english" }));
+    expect(await transcribe("k", audio, silent)).toBe("");
+    const noisy = vi.fn<typeof fetch>().mockResolvedValue(
+      json({
+        text: "latest commit blah",
+        language: "english",
+        segments: [
+          { text: "latest commit", avg_logprob: -0.2, no_speech_prob: 0.01 },
+          { text: " blah", avg_logprob: -1.5, no_speech_prob: 0.9 },
+        ],
+      }),
+    );
+    expect(await transcribe("k", audio, noisy)).toBe("latest commit");
+  });
+  it("fixes split names and common tech words", async () => {
+    const { fixVocabulary } = await import("../packages/agent-core/src/services/voice");
+    expect(
+      fixVocabulary("send the read me of project lens from git hub and log-sonar", [
+        "projectlens",
+        "logsonar",
+      ]),
+    ).toBe("send the README of projectlens from GitHub and logsonar");
+  });
+});
