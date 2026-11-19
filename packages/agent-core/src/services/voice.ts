@@ -181,8 +181,8 @@ export function vocabularyPrompt(vocabulary: string[], sinhala: boolean) {
   ];
   const unique = [...new Set(terms.map((t) => t.trim()).filter(Boolean))].join(", ");
   const base = sinhala
-    ? `මගේ GitHub repo එකේ last commit එක මොකක්ද? README එක එවන්න. අද email මොනවද? ${unique}.`
-    : `Hi WorkCopilot, what's the latest commit in my GitHub repo? Send the README. Any new emails? ${unique}.`;
+    ? `AI, මගේ GitHub repo එකේ last commit එක මොකක්ද? GitHub, README එක එවන්න. Email, අද mail මොනවද? ${unique}.`
+    : `AI, what's the latest commit in my GitHub repo? GitHub, send the README. Email, any new emails? ${unique}.`;
   return base.slice(0, 700);
 }
 

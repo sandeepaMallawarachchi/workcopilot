@@ -355,13 +355,42 @@ export function narrow<T>(
   return items.filter((item) => set.has(key(item).toLowerCase()));
 }
 
-/** How names are often spoken or transcribed in Sinhala script. */
-const SINHALA_NAMES: Record<string, string[]> = {
-  ai: ["ඒ අයි", "ඒආයි", "ඒ.අයි", "එයි අයි"],
-  github: ["ගිට්හබ්", "ගිට් හබ්", "ගිතබ්"],
-  gitlab: ["ගිට්ලැබ්", "ගිට් ලැබ්", "ගිට්ලබ්"],
-  email: ["ඊමේල්", "ඊ මේල්", "ඊ-මේල්", "මේල්"],
-  mail: ["මේල්"],
+/**
+ * How names are often transcribed: Sinhala script, Devanagari (Whisper sometimes
+ * hears Sinhala speech as Hindi), Tamil, and common English mishearings.
+ */
+const SPOKEN_ALIASES: Record<string, string[]> = {
+  ai: [
+    "ඒ අයි",
+    "ඒආයි",
+    "ඒඅයි",
+    "ඒ.අයි",
+    "ඒයි",
+    "එයි අයි",
+    "එ අයි",
+    "ඒ ඒ අයි",
+    "एआई",
+    "ए आई",
+    "एआइ",
+    "ए.आई",
+    "ஏஐ",
+    "ay",
+    "ey",
+    "hey ai",
+  ],
+  github: [
+    "ගිට්හබ්",
+    "ගිට් හබ්",
+    "ගිතබ්",
+    "गिटहब",
+    "गिट हब",
+    "கிட்ஹப்",
+    "get hub",
+    "kit hub",
+  ],
+  gitlab: ["ගිට්ලැබ්", "ගිට් ලැබ්", "ගිට්ලබ්", "गिटलैब", "गिट लैब", "get lab", "kit lab"],
+  email: ["ඊමේල්", "ඊ මේල්", "ඊ-මේල්", "මේල්", "ईमेल", "ई-मेल", "ई मेल", "e mail"],
+  mail: ["මේල්", "मेल"],
 };
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -386,7 +415,7 @@ export function parseSpokenPrefix(
     .map((prefix) => {
       const name = prefix.replace(/^@/, "").toLowerCase();
       const spelled = name.split("").map(escape).join("[\\s.'-]?");
-      const alts = [spelled, ...(SINHALA_NAMES[name] ?? []).map(escape)];
+      const alts = [spelled, ...(SPOKEN_ALIASES[name] ?? []).map(escape)];
       return { prefix, alts };
     })
     // Longer names first ("gitlab" before "git…").

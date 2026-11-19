@@ -199,3 +199,23 @@ describe("spoken prefixes in voice notes", () => {
     expect(parseSpokenPrefix("my github is down", p)).toBeNull();
   });
 });
+
+describe("spoken prefix aliases", () => {
+  it("recognises 'AI' as transcribed in different scripts and spellings", async () => {
+    const { parseSpokenPrefix } =
+      await import("../packages/agent-core/src/services/shortcuts");
+    const p = ["@ai", "@github", "@email"];
+    for (const t of [
+      "Ai what is new",
+      "AI. what is new",
+      "ඒ අයි, අද mail මොනවද",
+      "ඒයි අද mail මොනවද",
+      "एआई क्लोड ओटीपी",
+      "Hey AI, what is new",
+      "Ey, what is new",
+    ])
+      expect(parseSpokenPrefix(t, p)?.prefix, t).toBe("@ai");
+    expect(parseSpokenPrefix("गिटहब latest commit", p)?.prefix).toBe("@github");
+    expect(parseSpokenPrefix("ईमेल any new mail", p)?.prefix).toBe("@email");
+  });
+});

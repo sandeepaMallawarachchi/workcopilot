@@ -134,9 +134,15 @@ Deno.serve(async (req) => {
       // Names Whisper should spell correctly: repositories/projects this contact
       // can reach, mailbox labels and shortcut words. Best effort only.
       const voiceVocabulary = async () => {
-        const words: string[] = storedShortcuts(settings.shortcuts).map((x) =>
-          x.prefix.replace(/^@/, ""),
-        );
+        const words: string[] = [
+          settings.activation_prefix.replace(/^@/, "").toUpperCase(),
+          ...storedShortcuts(settings.shortcuts).map((x) => x.prefix.replace(/^@/, "")),
+          // Services whose sign-in codes are approved (e.g. "Claude OTP").
+          ...(settings.verification_senders ?? []).map((d: string) => d.split(".")[0]),
+          "Claude",
+          "ChatGPT",
+          "OpenAI",
+        ];
         try {
           const contactRes = storedResources(contact.resources);
           const { data: rows } = await client
