@@ -30,7 +30,10 @@ import {
   contextFor,
   type HistoryMessage,
 } from "../../../packages/agent-core/src/services/conversation.ts";
-import { splitReply } from "../../../packages/agent-core/src/services/response.ts";
+import {
+  splitReply,
+  toWhatsApp,
+} from "../../../packages/agent-core/src/services/response.ts";
 import {
   combineScopes,
   deniedProviders,
@@ -372,7 +375,8 @@ Deno.serve(async (req) => {
             );
           },
         });
-        await reply(result.reply, result.reply, result.sources);
+        // Dashboard keeps the Markdown; WhatsApp gets its own formatting.
+        await reply(result.reply, toWhatsApp(result.reply), result.sources);
       }
     }
     const sent = await deliver(job.id, job.lease_token);

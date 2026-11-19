@@ -950,3 +950,37 @@ describe("unmasked output for contacts allowed to view secrets", () => {
     expect(splitReply(env)[0]).not.toContain("abc123secret");
   });
 });
+
+describe("WhatsApp formatting", () => {
+  it("turns Markdown tables, headings, bold and links into WhatsApp text", async () => {
+    const { toWhatsApp } = await import("../packages/agent-core/src/services/response");
+    const md = [
+      "## Personal mailbox – summary",
+      "",
+      "| # | Sender | Subject | Unread |",
+      "|---|--------|---------|--------|",
+      "| 1 | Google | Security alert | yes |",
+      "| 2 | GitLab | Token \\| expiry | no |",
+      "",
+      "**Key points**",
+      "- See [the repo](https://github.com/o/r) and <https://x.dev>",
+      "---",
+    ].join("\n");
+    expect(toWhatsApp(md)).toBe(
+      [
+        "*Personal mailbox – summary*",
+        "",
+        "• Google — Subject: Security alert · Unread: yes",
+        "• GitLab — Subject: Token | expiry · Unread: no",
+        "",
+        "*Key points*",
+        "• See the repo (https://github.com/o/r) and https://x.dev",
+      ].join("\n"),
+    );
+  });
+  it("leaves code blocks untouched", async () => {
+    const { toWhatsApp } = await import("../packages/agent-core/src/services/response");
+    const code = "```ts\nconst a = **b** | c;\n```";
+    expect(toWhatsApp(code)).toBe("```\nconst a = **b** | c;\n```");
+  });
+});
