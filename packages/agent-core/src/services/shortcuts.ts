@@ -354,3 +354,58 @@ export function narrow<T>(
   const set = new Set(selected.map((s) => s.toLowerCase()));
   return items.filter((item) => set.has(key(item).toLowerCase()));
 }
+
+/** How names are often spoken or transcribed in Sinhala script. */
+const SINHALA_NAMES: Record<string, string[]> = {
+  ai: ["ඒ අයි", "ඒආයි", "ඒ.අයි", "එයි අයි"],
+  github: ["ගිට්හබ්", "ගිට් හබ්", "ගිතබ්"],
+  gitlab: ["ගිට්ලැබ්", "ගිට් ලැබ්", "ගිට්ලබ්"],
+  email: ["ඊමේල්", "ඊ මේල්", "ඊ-මේල්", "මේල්"],
+  mail: ["මේල්"],
+};
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Finds a prefix spoken at the start of a voice-note transcript, e.g.
+ * "AI, what's new?", "Hey GitHub — latest commit", "at email any unread mail".
+ * Returns the matched prefix (as configured, e.g. "@github") and the rest of
+ * the request, or null when the note does not start with one.
+ *
+ * `vocative` is true when the name was clearly addressed (followed by a pause
+ * such as a comma, or preceded by "hey"/"at"); only then is it removed from the
+ * request text, so "GitHub's latest commit" keeps its meaning.
+ */
+export function parseSpokenPrefix(
+  transcript: string,
+  prefixes: string[],
+): { prefix: string; rest: string; vocative: boolean } | null {
+  const text = transcript.trim();
+  const filler = "^(?:(?:hey|hi|hello|ok(?:ay)?|yo|dear|හායි|හේයි)[\\s,.!]+)?(@|at\\s+)?";
+  const options = prefixes
+    .map((prefix) => {
+      const name = prefix.replace(/^@/, "").toLowerCase();
+      const spelled = name.split("").map(escape).join("[\\s.'-]?");
+      const alts = [spelled, ...(SINHALA_NAMES[name] ?? []).map(escape)];
+      return { prefix, alts };
+    })
+    // Longer names first ("gitlab" before "git…").
+    .sort((a, b) => b.prefix.length - a.prefix.length);
+  for (const { prefix, alts } of options) {
+    const re = new RegExp(
+      `${filler}(?:${alts.join("|")})(?![\\p{L}\\p{N}])([\\s]*[,.:;!?—–-]+)?\\s*`,
+      "iu",
+    );
+    const m = re.exec(text);
+    if (!m) continue;
+    const addressed =
+      Boolean(m[1]) ||
+      Boolean(m[2]) ||
+      /^(hey|hi|hello|ok|yo|dear|හායි|හේයි)/i.test(text);
+    const rest = text.slice(m[0].length).trim();
+    return addressed
+      ? { prefix, rest, vocative: true }
+      : { prefix, rest: text, vocative: false };
+  }
+  return null;
+}

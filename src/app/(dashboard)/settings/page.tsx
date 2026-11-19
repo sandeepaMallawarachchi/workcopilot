@@ -127,16 +127,16 @@ export default async function Settings() {
               </Field>
               <Field
                 label="Voice notes"
-                hint="Voice notes are transcribed and answered like typed messages. You can't say “@ai”, so choose when they count. The audio is never stored."
+                hint="Voice notes are transcribed and answered like typed messages. Start one by saying a prefix, e.g. “AI, what’s new?” or “GitHub, latest commit…”. Notes without a prefix outside a conversation are discarded unread. The audio is never stored."
               >
                 <Select
                   name="voice_mode"
                   defaultValue={settings.voice_mode ?? "followup"}
                 >
                   <option value="followup">
-                    During a conversation (follow-up window)
+                    When you say a prefix, or during a conversation
                   </option>
-                  <option value="always">Always (treated as the main prefix)</option>
+                  <option value="always">Always (any voice note, full access)</option>
                   <option value="off">Off</option>
                 </Select>
               </Field>

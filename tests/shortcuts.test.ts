@@ -154,3 +154,48 @@ describe("per-contact repositories and mailboxes", () => {
     expect(narrow(["o/a", "o/b"], undefined, (r) => r)).toEqual(["o/a", "o/b"]);
   });
 });
+
+describe("spoken prefixes in voice notes", () => {
+  it("detects addressed prefixes in English and Sinhala script", async () => {
+    const { parseSpokenPrefix } =
+      await import("../packages/agent-core/src/services/shortcuts");
+    const p = ["@ai", "@github", "@gitlab", "@email"];
+    expect(parseSpokenPrefix("AI, what's new today?", p)).toEqual({
+      prefix: "@ai",
+      rest: "what's new today?",
+      vocative: true,
+    });
+    expect(
+      parseSpokenPrefix("Hey GitHub — latest commit in projectlens", p),
+    ).toMatchObject({
+      prefix: "@github",
+      rest: "latest commit in projectlens",
+    });
+    expect(parseSpokenPrefix("at email any unread mail?", p)).toMatchObject({
+      prefix: "@email",
+      rest: "any unread mail?",
+    });
+    expect(parseSpokenPrefix("A.I. send the README", p)?.prefix).toBe("@ai");
+    expect(parseSpokenPrefix("ගිට්ලැබ්, pipeline එක fail ද?", p)).toMatchObject({
+      prefix: "@gitlab",
+      rest: "pipeline එක fail ද?",
+    });
+  });
+  it("keeps the words when the name is part of the sentence", async () => {
+    const { parseSpokenPrefix } =
+      await import("../packages/agent-core/src/services/shortcuts");
+    expect(parseSpokenPrefix("GitHub latest commit please", ["@ai", "@github"])).toEqual({
+      prefix: "@github",
+      rest: "GitHub latest commit please",
+      vocative: false,
+    });
+  });
+  it("ignores notes that do not start with a prefix", async () => {
+    const { parseSpokenPrefix } =
+      await import("../packages/agent-core/src/services/shortcuts");
+    const p = ["@ai", "@github", "@email"];
+    expect(parseSpokenPrefix("call me when you're free", p)).toBeNull();
+    expect(parseSpokenPrefix("aim for six", p)).toBeNull();
+    expect(parseSpokenPrefix("my github is down", p)).toBeNull();
+  });
+});

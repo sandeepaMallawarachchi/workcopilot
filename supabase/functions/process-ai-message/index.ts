@@ -48,6 +48,7 @@ import {
   isHelpRequest,
   scopeFor,
   storedShortcuts,
+  parseSpokenPrefix,
   storedResources,
   limitScope,
   narrow,
@@ -125,7 +126,8 @@ Deno.serve(async (req) => {
           message.whatsapp_message_id,
         );
       };
-      typing();
+      // Provisional voice notes get no read ticks until a spoken prefix is found.
+      if (!message.needs_prefix) typing();
       // Voice note: download from Meta, transcribe (Groq Whisper), then treat the
       // transcript as the request. The audio itself is never stored.
       let heard: string | null = null;
@@ -198,6 +200,39 @@ Deno.serve(async (req) => {
         );
         message.content = text;
         heard = text || null;
+        // Spoken prefix: "AI, …", "GitHub, …", "Email …" (also in Sinhala script).
+        const spoken = parseSpokenPrefix(text, [
+          settings.activation_prefix,
+          ...storedShortcuts(settings.shortcuts).map((x) => x.prefix),
+        ]);
+        if (spoken) {
+          const isMain =
+            spoken.prefix.toLowerCase() === settings.activation_prefix.toLowerCase();
+          message.content = spoken.rest;
+          message.shortcut = isMain ? null : spoken.prefix.toLowerCase();
+          check(
+            await client
+              .from("messages")
+              .update({
+                content: spoken.rest || text,
+                shortcut: message.shortcut,
+                needs_prefix: false,
+              })
+              .eq("id", message.id),
+          );
+          if (message.needs_prefix) typing();
+          message.needs_prefix = false;
+        } else if (message.needs_prefix) {
+          // Not addressed to the assistant: forget it (no storage, no reply).
+          check(
+            await client.rpc("discard_message", {
+              p_job: job.id,
+              p_token: job.lease_token,
+            }),
+          );
+          await client.rpc("kick_worker");
+          return Response.json({ status: "discarded" });
+        }
       }
       // Shortcut scope (e.g. "@github"): only the chosen tools are loaded and
       // offered to the model, which saves tokens and keeps answers on topic.
@@ -264,8 +299,9 @@ Deno.serve(async (req) => {
         : [];
       let handled = false;
       if (message.voice && !message.content.trim()) {
-        const text =
-          "🎙️ I couldn't make out any speech in that voice note. Please try again or type your message.";
+        const text = heard
+          ? "🎙️ I'm listening. What would you like to ask?"
+          : "🎙️ I couldn't make out any speech in that voice note. Please try again or type your message.";
         await reply(text, text);
         handled = true;
       }
