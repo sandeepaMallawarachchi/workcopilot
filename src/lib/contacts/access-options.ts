@@ -1,6 +1,7 @@
 import { availableRepositories } from "@/lib/integrations/available";
 import {
   CODES_TASK,
+  SENT_TASK,
   availableTasks,
   type Task,
 } from "../../../packages/agent-core/src/services/shortcuts";
@@ -20,7 +21,7 @@ export async function taskOptions(db: Db, workspace: string): Promise<Task[]> {
       db.from("mailboxes").select("id").eq("workspace_id", workspace),
       db
         .from("agent_settings")
-        .select("verification_codes_enabled")
+        .select("verification_codes_enabled,email_sent_enabled")
         .eq("workspace_id", workspace)
         .single(),
     ]);
@@ -42,6 +43,7 @@ export async function taskOptions(db: Db, workspace: string): Promise<Task[]> {
   const hasMail = (mailboxes?.length ?? 0) > 0;
   return [
     ...availableTasks({ github: caps("github"), gitlab: caps("gitlab"), email: hasMail }),
+    ...(hasMail && settings?.email_sent_enabled ? [SENT_TASK] : []),
     ...(hasMail && settings?.verification_codes_enabled ? [CODES_TASK] : []),
   ];
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, KeyRound, Mail, ShieldAlert } from "lucide-react";
+import { ArrowLeft, KeyRound, Mail, Send, ShieldAlert } from "lucide-react";
 import { SiGmail } from "react-icons/si";
 import { requireAdmin } from "@/lib/auth";
 import { removeMailbox, retestMailbox, saveEmailRules, saveMailbox } from "@/app/actions";
@@ -35,7 +35,7 @@ export default async function EmailSettings() {
           <div>
             <h1 className="text-lg font-bold tracking-tight text-ink">Email</h1>
             <p className="mt-0.5 text-xs text-muted">
-              Read-only access to your inboxes over IMAP. Nothing is ever sent, moved,
+              Read-only access to your mailboxes over IMAP. Nothing is ever sent, moved,
               deleted or marked as read.
             </p>
           </div>
@@ -187,6 +187,25 @@ export default async function EmailSettings() {
                 placeholder={"bank.com\nhr@company.com"}
               />
             </Field>
+
+            <div className="rounded-xl border border-border bg-canvas p-4">
+              <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <Send size={16} aria-hidden="true" /> Sent mail
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                Lets the assistant search and read emails you sent, e.g. “@email the email
+                I sent to client@example.com about the invoice”. Still read-only: it can
+                never send email. Blocked senders are hidden here too.
+              </p>
+              <div className="mt-4">
+                <Switch
+                  name="email_sent_enabled"
+                  label="Allow reading sent mail"
+                  description="Contacts with “All integrations” get it automatically; others need “Sent mail” under Manage access."
+                  defaultChecked={Boolean(settings?.email_sent_enabled)}
+                />
+              </div>
+            </div>
 
             <div className="rounded-xl border border-border bg-canvas p-4">
               <p className="flex items-center gap-2 text-sm font-semibold text-ink">

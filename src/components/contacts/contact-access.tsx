@@ -17,13 +17,14 @@ import { cn } from "@/lib/utils";
 import {
   CODES_TASK,
   PROVIDER_NAMES,
+  SENT_TASK,
   TASKS,
   type ContactResources,
   type Task,
   type TaskProvider,
 } from "../../../packages/agent-core/src/services/shortcuts";
 
-const ALL_TASKS = [...TASKS, CODES_TASK];
+const ALL_TASKS = [...TASKS, SENT_TASK, CODES_TASK];
 
 /** Per-contact opt-in shown as its own group in the access dropdown. */
 /** Per-contact permission to send voice notes (on by default). */
@@ -396,7 +397,12 @@ export function AccessEditor({
         <Section
           icon={<Mail size={15} aria-hidden="true" className="text-accent" />}
           title="Mailboxes"
-          hint="Which connected inboxes this contact can search and read."
+          hint={
+            available.some((t) => t.id === SENT_TASK.id) &&
+            (all || tasks.includes(SENT_TASK.id))
+              ? "Which connected mailboxes this contact can search and read, including their sent mail."
+              : "Which connected inboxes this contact can search and read."
+          }
         >
           <Mode
             name="mailbox_mode"

@@ -95,6 +95,11 @@ describe("per-contact access", () => {
     expect(both).toMatchObject({ github: ["code"], email: false });
     expect(combineScopes(FULL_SCOPE, scopeFromTasks(null))).toEqual(FULL_SCOPE);
     expect(scopeFromTasks(["email:read", "email:codes"]).codes).toBe(true);
+    // Sent mail is a contact permission; shortcuts don't restrict it on their own.
+    expect(combineScopes(FULL_SCOPE, contact).sent).toBe(false);
+    const withSent = scopeFromTasks(["email:read", "email:sent"]);
+    expect(combineScopes(scopeFor("@email", shortcuts), withSent).sent).toBe(true);
+    expect(combineScopes(scopeFor("@github", shortcuts), withSent).sent).toBe(false);
   });
   it("detects requests for services the contact cannot use", async () => {
     const { deniedProviders, noAccessText, scopeFromTasks } =
@@ -149,6 +154,7 @@ describe("per-contact repositories and mailboxes", () => {
     expect(limitScope(FULL_SCOPE, { mailboxes: [] })).toMatchObject({
       email: false,
       codes: false,
+      sent: false,
     });
     expect(narrow(["o/a", "o/b"], ["O/A"], (r) => r)).toEqual(["o/a"]);
     expect(narrow(["o/a", "o/b"], undefined, (r) => r)).toEqual(["o/a", "o/b"]);

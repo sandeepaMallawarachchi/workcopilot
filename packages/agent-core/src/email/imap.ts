@@ -134,6 +134,25 @@ export class ImapClient {
     await this.command(`EXAMINE ${imapQuote(mailbox)}`);
   }
 
+  /** Lists folders with their attributes (LIST is read-only). */
+  async list(): Promise<{ name: string; attributes: string[] }[]> {
+    const responses = await this.command(`LIST "" "*"`);
+    const out: { name: string; attributes: string[] }[] = [];
+    for (const r of responses) {
+      const m = /^\* LIST \(([^)]*)\) (?:"(?:[^"\\]|\\.)*"|NIL) (.+)$/i.exec(r.text);
+      if (!m) continue;
+      const raw = m[2].trim();
+      const literal = /^\{literal:(\d+)\}$/.exec(raw);
+      const name = literal
+        ? decoder.decode(r.literals[Number(literal[1])])
+        : raw.startsWith('"')
+          ? raw.slice(1, -1).replace(/\\(.)/g, "$1")
+          : raw;
+      out.push({ name, attributes: m[1].split(/\s+/).filter(Boolean) });
+    }
+    return out;
+  }
+
   async uidSearch(criteria: string): Promise<number[]> {
     const responses = await this.command(`UID SEARCH ${criteria}`);
     const ids: number[] = [];

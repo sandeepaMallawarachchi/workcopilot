@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
           "Activated request text, the assistant’s reply, timestamps, delivery identifiers, processing status, and relevant source links.",
           "Limited operational records such as tool names, outcomes, retry status, and security or administrator audit events.",
           "Repository content returned by GitHub or GitLab when an activated request calls an enabled, explicitly authorized read-only tool.",
-          "Email content from mailboxes the administrator connects (read-only over IMAP), retrieved only when an activated request asks about email. Sign-in and verification emails are never sent to the AI provider; if the administrator enables verification codes, a code or link from an approved sender may be extracted without AI and sent to the requesting authorized contact, and is not kept in conversation history. Mailbox passwords are stored encrypted.",
+          "Email content from mailboxes the administrator connects (read-only over IMAP; the inbox, and sent mail only if the administrator turns it on), retrieved only when an activated request asks about email. Sign-in and verification emails are never sent to the AI provider; if the administrator enables verification codes, a code or link from an approved sender may be extracted without AI and sent to the requesting authorized contact, and is not kept in conversation history. Mailbox passwords are stored encrypted.",
         ]} />
         <p>Do not send passwords, access tokens, private keys, or other credentials in a WhatsApp request. WorkCopilot does not need them to answer.</p>
       </LegalSection>

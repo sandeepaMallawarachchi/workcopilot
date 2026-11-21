@@ -26,10 +26,37 @@ export type MailboxConfig = {
 export type EmailSummary = {
   uid: number;
   from: string;
+  /** Recipients; only listed for sent mail. */
+  to?: string;
   subject: string;
   date: string;
   unread: boolean;
 };
+
+/** Which folder to read: the inbox, or the opt-in Sent folder. */
+export type Folder = "inbox" | "sent";
+
+/** Common Sent folder names, for servers without the \Sent attribute (RFC 6154). */
+const SENT_NAMES = new Set([
+  "sent",
+  "sent items",
+  "sent mail",
+  "sent messages",
+  "[gmail]/sent mail",
+  "inbox.sent",
+  "inbox/sent",
+]);
+
+/** Opens the folder read-only (EXAMINE). The Sent folder is found by attribute, then name. */
+export async function openFolder(client: ImapClient, folder: Folder = "inbox") {
+  if (folder === "inbox") return client.examine("INBOX");
+  const folders = await client.list();
+  const sent =
+    folders.find((f) => f.attributes.some((a) => a.toLowerCase() === "\\sent")) ??
+    folders.find((f) => SENT_NAMES.has(f.name.toLowerCase()));
+  if (!sent) throw new Error("No Sent folder was found in this mailbox");
+  await client.examine(sent.name);
+}
 
 const encoder = new TextEncoder();
 const formatAddress = (a?: { name?: string; address?: string }) =>
@@ -65,10 +92,14 @@ async function parse(raw: Uint8Array) {
   };
 }
 
-async function summaries(client: ImapClient, uids: number[]): Promise<EmailSummary[]> {
+async function summaries(
+  client: ImapClient,
+  uids: number[],
+  withRecipients = false,
+): Promise<EmailSummary[]> {
   const fetched = await client.uidFetch(
     uids,
-    "UID FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)]",
+    "UID FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE)]",
   );
   const out: EmailSummary[] = [];
   for (const m of fetched) {
@@ -79,6 +110,7 @@ async function summaries(client: ImapClient, uids: number[]): Promise<EmailSumma
     out.push({
       uid: m.uid,
       from: headers.from,
+      ...(withRecipients ? { to: headers.to } : {}),
       subject: headers.subject,
       date: headers.date || m.internalDate || "",
       unread: !/\\Seen/i.test(m.flags),
@@ -88,16 +120,23 @@ async function summaries(client: ImapClient, uids: number[]): Promise<EmailSumma
 }
 
 export type SearchOptions = {
+  folder?: Folder;
   query?: string;
   from?: string;
+  to?: string;
   sinceDays?: number;
   unreadOnly?: boolean;
   limit?: number;
 };
 
+/** Blocked addresses are hidden whether they sent the email or received it. */
+const blockedIn = (m: { from: string; to?: string }, blocked: string[]) =>
+  senderApproved(m.from, blocked) ||
+  (m.to ?? "").split(",").some((r) => r.trim() && senderApproved(r, blocked));
+
 /**
- * Newest-first search of the inbox. Sign-in/verification emails and blocked
- * senders are removed before anything leaves this function.
+ * Newest-first search of the inbox (or the Sent folder). Sign-in/verification
+ * emails and blocked senders are removed before anything leaves this function.
  */
 export async function searchMailbox(
   connect: ImapConnect,
@@ -105,25 +144,28 @@ export async function searchMailbox(
   options: SearchOptions,
   blockedSenders: string[] = [],
 ) {
+  const sent = options.folder === "sent";
   return withImap(connect, box, async (client) => {
-    await client.examine("INBOX");
+    await openFolder(client, options.folder);
     const since = new Date(Date.now() - (options.sinceDays ?? 7) * 86400000);
     const criteria = [`SINCE ${imapDate(since)}`];
     if (options.unreadOnly) criteria.push("UNSEEN");
     if (options.from) criteria.push(`FROM ${imapQuote(options.from)}`);
+    if (options.to) criteria.push(`TO ${imapQuote(options.to)}`);
     // Non-ASCII search terms would need IMAP literals; filter those locally instead.
     const asciiQuery = options.query && /^[\x20-\x7e]+$/.test(options.query);
     if (asciiQuery) criteria.push(`TEXT ${imapQuote(options.query!)}`);
     const uids = (await client.uidSearch(criteria.join(" "))).slice(-60);
-    let found = await summaries(client, uids);
+    let found = await summaries(client, uids, sent);
     if (options.query && !asciiQuery) {
       const q = options.query.toLowerCase();
-      found = found.filter((m) => `${m.subject} ${m.from}`.toLowerCase().includes(q));
+      found = found.filter((m) =>
+        `${m.subject} ${m.from} ${m.to ?? ""}`.toLowerCase().includes(q),
+      );
     }
     const visible = found.filter(
       (m) =>
-        !looksLikeVerificationHeaders(m.subject, m.from) &&
-        !senderApproved(m.from, blockedSenders),
+        !looksLikeVerificationHeaders(m.subject, m.from) && !blockedIn(m, blockedSenders),
     );
     return {
       emails: visible.slice(0, options.limit ?? 15),
@@ -138,13 +180,14 @@ export async function readEmail(
   box: MailboxConfig,
   uid: number,
   blockedSenders: string[] = [],
+  folder: Folder = "inbox",
 ) {
   return withImap(connect, box, async (client) => {
-    await client.examine("INBOX");
+    await openFolder(client, folder);
     const [m] = await client.uidFetch([uid], "UID FLAGS BODY.PEEK[]<0.200000>");
     if (!m?.literal) throw new Error("Email not found");
     const mail = await parse(m.literal);
-    if (senderApproved(mail.from, blockedSenders))
+    if (blockedIn(mail, blockedSenders))
       throw new Error("This sender is blocked in your email settings");
     if (isVerificationEmail(mail))
       throw new Error(

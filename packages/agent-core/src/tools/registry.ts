@@ -133,7 +133,7 @@ export class Registry {
       gh.length ? `GitHub repositories: ${gh.slice(0, 150).join(", ")}` : "",
       gl.length ? `GitLab projects: ${gl.slice(0, 150).join(", ")}` : "",
       this.email?.mailboxes.length
-        ? `Mailboxes: ${this.email.mailboxes.map((b) => `${b.label} (${b.address})`).join(", ")}`
+        ? `Mailboxes (${this.email.sentAllowed ? "inbox and sent mail" : "inbox only"}): ${this.email.mailboxes.map((b) => `${b.label} (${b.address})`).join(", ")}`
         : "",
     ]
       .filter(Boolean)

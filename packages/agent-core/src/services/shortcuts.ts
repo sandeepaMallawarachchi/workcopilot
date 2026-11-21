@@ -51,6 +51,13 @@ export const CODES_TASK: Task = {
   capability: "codes",
   label: "Verification codes",
 };
+/** Contact-only permission: the opt-in read-only Sent folder access. */
+export const SENT_TASK: Task = {
+  id: "email:sent",
+  provider: "email",
+  capability: "sent",
+  label: "Sent mail",
+};
 export const PROVIDER_NAMES: Record<TaskProvider, string> = {
   github: "GitHub",
   gitlab: "GitLab",
@@ -124,6 +131,8 @@ export type Scope = {
   email: boolean;
   /** Opt-in verification codes (contact permission). */
   codes: boolean;
+  /** Opt-in sent mail (contact permission). */
+  sent: boolean;
 };
 export const FULL_SCOPE: Scope = {
   all: true,
@@ -131,6 +140,7 @@ export const FULL_SCOPE: Scope = {
   gitlab: undefined,
   email: true,
   codes: true,
+  sent: true,
 };
 
 /** Scope from a task list; null = everything. */
@@ -148,6 +158,7 @@ export function scopeFromTasks(tasks: string[] | null | undefined): Scope {
     gitlab: gl.length ? gl : null,
     email: tasks.includes("email:read"),
     codes: tasks.includes(CODES_TASK.id),
+    sent: tasks.includes(SENT_TASK.id),
   };
 }
 
@@ -162,8 +173,9 @@ export function scopeFor(
   const match = shortcut
     ? shortcuts.find((s) => s.prefix.toLowerCase() === shortcut.toLowerCase())
     : undefined;
-  // Shortcuts never restrict verification codes on their own; email access does.
-  return match ? { ...scopeFromTasks(match.tasks), codes: true } : FULL_SCOPE;
+  // Shortcuts never restrict verification codes or sent mail on their own;
+  // email access does.
+  return match ? { ...scopeFromTasks(match.tasks), codes: true, sent: true } : FULL_SCOPE;
 }
 
 /** Both must allow it: shortcut scope ∩ contact access. */
@@ -181,6 +193,7 @@ export function combineScopes(a: Scope, b: Scope): Scope {
     gitlab: merge(a.gitlab, b.gitlab),
     email: a.email && b.email,
     codes: a.codes && b.codes && a.email && b.email,
+    sent: a.sent && b.sent && a.email && b.email,
   };
 }
 
@@ -227,7 +240,7 @@ export function noAccessText(providers: TaskProvider[], prefix?: string) {
 /** Validates a contact's access list (null = all integrations). */
 export function parseContactAccess(value: unknown): string[] {
   if (!Array.isArray(value)) throw new Error("Access must be a list");
-  const known = new Set([...TASKS.map((t) => t.id), CODES_TASK.id]);
+  const known = new Set([...TASKS.map((t) => t.id), CODES_TASK.id, SENT_TASK.id]);
   return [...new Set(value.map(String))].filter((t) => known.has(t));
 }
 
@@ -341,6 +354,7 @@ export function limitScope(scope: Scope, res: ContactResources): Scope {
     gitlab: res.gitlab && !res.gitlab.length ? null : scope.gitlab,
     email: res.mailboxes && !res.mailboxes.length ? false : scope.email,
     codes: res.mailboxes && !res.mailboxes.length ? false : scope.codes,
+    sent: res.mailboxes && !res.mailboxes.length ? false : scope.sent,
   };
 }
 

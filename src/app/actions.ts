@@ -544,6 +544,7 @@ export async function saveEmailRules(form: FormData): Promise<FormActionResult> 
       .from("agent_settings")
       .update({
         email_blocked_senders: blocked,
+        email_sent_enabled: form.get("email_sent_enabled") === "on",
         verification_codes_enabled: enabled,
         verification_senders: senders,
         updated_at: new Date().toISOString(),

@@ -459,6 +459,8 @@ Deno.serve(async (req) => {
                 mailboxes,
                 denoImapConnect,
                 settings.email_blocked_senders ?? [],
+                // Sent mail: owner opt-in (Integrations → Email) ∩ contact access.
+                { sent: settings.email_sent_enabled === true && scope.sent },
               )
             : undefined,
         );
